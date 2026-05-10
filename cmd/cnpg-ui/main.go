@@ -28,6 +28,7 @@ import (
 	"github.com/dbonne/cnpg-ui/internal/middleware"
 	openapipkg "github.com/dbonne/cnpg-ui/internal/openapi"
 	"github.com/dbonne/cnpg-ui/internal/pooler"
+	"github.com/dbonne/cnpg-ui/internal/ui"
 )
 
 func main() {
@@ -205,17 +206,42 @@ func run() error {
 		r.Get("/api/v1/clusters/{name}/logs/stream", requireService(logSvc, logHandler.StreamLogs))
 	})
 
+	// ── UI handler (templates embedded at build time) ────────────────────────
+	uiHandler, err := ui.NewUIHandler()
+	if err != nil {
+		return fmt.Errorf("initializing UI handler: %w", err)
+	}
+
+	// ── Login page (no auth) ─────────────────────────────────────────────────
+	r.Get("/ui/login", uiHandler.LoginPage)
+	// ─────────────────────────────────────────────────────────────────────────
+
 	// ── Protected UI routes ───────────────────────────────────────────────────
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.UIAuth(sessionValidator))
 		r.Post("/ui/logout", authHandler.UILogout)
-		// PR 6: UI routes for HTMX partials added here
-	})
 
-	// ── Login page (no auth) ─────────────────────────────────────────────────
-	r.Get("/ui/login", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, loginPageHTML)
+		// Cluster UI pages
+		r.Get("/ui/clusters", uiHandler.ListClusters)
+		r.Get("/ui/clusters/{name}", uiHandler.ClusterDetail)
+
+		// Log and config panel partials — stub until PR7 integrates them fully
+		r.Get("/ui/clusters/{name}/overview", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprint(w, `<p style="color:#6b7280">Overview coming soon.</p>`)
+		})
+		r.Get("/ui/clusters/{name}/logs-panel", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprint(w, `<p style="color:#6b7280">Log panel coming soon.</p>`)
+		})
+		r.Get("/ui/clusters/{name}/config-panel", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprint(w, `<p style="color:#6b7280">Config panel coming soon.</p>`)
+		})
+		r.Get("/ui/clusters/{name}/backups-panel", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprint(w, `<p style="color:#6b7280">Backups panel coming soon.</p>`)
+		})
 	})
 	// ─────────────────────────────────────────────────────────────────────────
 
@@ -313,17 +339,4 @@ func newLogger(level string) *slog.Logger {
 	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: l}))
 }
 
-// loginPageHTML is a minimal login page served at GET /ui/login.
-// The full template will be replaced in PR 6 (UI layer).
-const loginPageHTML = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>CNPG UI — Login</title></head>
-<body>
-<h1>CNPG Web UI</h1>
-<form method="POST" action="/ui/login">
-  <label>Username: <input type="text" name="username" required autofocus></label><br>
-  <label>Password: <input type="password" name="password" required></label><br>
-  <button type="submit">Login</button>
-</form>
-</body>
-</html>`
+
