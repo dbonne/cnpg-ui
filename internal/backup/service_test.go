@@ -89,11 +89,20 @@ func TestListBackups_Empty(t *testing.T) {
 	}
 }
 
-// TestTriggerBackup_CreatesBackupCR verifies TriggerBackup creates a Backup CR.
+// fakeCluster builds a minimal CNPG Cluster CR for use in tests.
+func fakeCluster(name, ns string) *cnpgv1.Cluster {
+	return &cnpgv1.Cluster{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+	}
+}
+
+// TestTriggerBackup_CreatesBackupCR verifies TriggerBackup creates a Backup CR
+// when the cluster exists and no method is specified.
 func TestTriggerBackup_CreatesBackupCR(t *testing.T) {
 	t.Parallel()
 
-	fakeClient := fake.NewClientBuilder().WithScheme(newScheme()).Build()
+	cl := fakeCluster("prod", "default")
+	fakeClient := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(cl).Build()
 	svc := backup.NewService(fakeClient, "default")
 
 	result, err := svc.TriggerBackup(context.Background(), "prod", api.TriggerBackupRequest{})
@@ -116,6 +125,52 @@ func TestTriggerBackup_CreatesBackupCR(t *testing.T) {
 	if list.Items[0].Spec.Cluster.Name != "prod" {
 		t.Errorf("Backup.Spec.Cluster.Name: got %q, want %q",
 			list.Items[0].Spec.Cluster.Name, "prod")
+	}
+}
+
+// TestTriggerBackup_ClusterNotFound verifies TriggerBackup errors when the cluster doesn't exist.
+func TestTriggerBackup_ClusterNotFound(t *testing.T) {
+	t.Parallel()
+
+	fakeClient := fake.NewClientBuilder().WithScheme(newScheme()).Build()
+	svc := backup.NewService(fakeClient, "default")
+
+	_, err := svc.TriggerBackup(context.Background(), "nonexistent", api.TriggerBackupRequest{})
+	if err == nil {
+		t.Fatal("expected error for nonexistent cluster, got nil")
+	}
+}
+
+// TestTriggerBackup_InvalidMethod verifies TriggerBackup rejects unknown backup methods.
+func TestTriggerBackup_InvalidMethod(t *testing.T) {
+	t.Parallel()
+
+	cl := fakeCluster("prod", "default")
+	fakeClient := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(cl).Build()
+	svc := backup.NewService(fakeClient, "default")
+
+	_, err := svc.TriggerBackup(context.Background(), "prod", api.TriggerBackupRequest{Method: "unknownMethod"})
+	if err == nil {
+		t.Fatal("expected error for invalid method, got nil")
+	}
+}
+
+// TestTriggerBackup_ValidMethods verifies all documented backup methods are accepted.
+func TestTriggerBackup_ValidMethods(t *testing.T) {
+	t.Parallel()
+
+	validMethods := []string{"", "barmanObjectStore", "volumeSnapshot", "plugin"}
+	for _, method := range validMethods {
+		t.Run("method="+method, func(t *testing.T) {
+			cl := fakeCluster("prod", "default")
+			fakeClient := fake.NewClientBuilder().WithScheme(newScheme()).WithObjects(cl).Build()
+			svc := backup.NewService(fakeClient, "default")
+
+			_, err := svc.TriggerBackup(context.Background(), "prod", api.TriggerBackupRequest{Method: method})
+			if err != nil {
+				t.Errorf("TriggerBackup with method %q: unexpected error: %v", method, err)
+			}
+		})
 	}
 }
 
@@ -218,5 +273,35 @@ func TestDeleteScheduledBackup_NotFound(t *testing.T) {
 	err := svc.DeleteScheduledBackup(context.Background(), "prod", "ghost")
 	if err == nil {
 		t.Fatal("expected error for non-existent scheduled backup, got nil")
+	}
+}
+
+// TestDeleteScheduledBackup_WrongCluster verifies that deleting a scheduled backup
+// that belongs to a different cluster returns an error (ownership check).
+func TestDeleteScheduledBackup_WrongCluster(t *testing.T) {
+	t.Parallel()
+
+	scheme := newScheme()
+	// "daily" belongs to "other-cluster", not "prod".
+	sb := fakeScheduledBackup("daily", "default", "other-cluster", "0 2 * * *")
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(sb).
+		Build()
+
+	svc := backup.NewService(fakeClient, "default")
+	err := svc.DeleteScheduledBackup(context.Background(), "prod", "daily")
+	if err == nil {
+		t.Fatal("expected error when deleting backup belonging to different cluster, got nil")
+	}
+
+	// The CR must still exist — it was not deleted.
+	var list cnpgv1.ScheduledBackupList
+	if listErr := fakeClient.List(context.Background(), &list); listErr != nil {
+		t.Fatalf("list: %v", listErr)
+	}
+	if len(list.Items) != 1 {
+		t.Errorf("CR count after rejected delete: got %d, want 1", len(list.Items))
 	}
 }

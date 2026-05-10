@@ -51,11 +51,34 @@ func (s *service) ListBackups(ctx context.Context, clusterName string) ([]api.Ba
 	return result, nil
 }
 
+// validBackupMethods is the set of allowed BackupMethod values.
+var validBackupMethods = map[cnpgv1.BackupMethod]struct{}{
+	cnpgv1.BackupMethodBarmanObjectStore: {},
+	cnpgv1.BackupMethodVolumeSnapshot:   {},
+	cnpgv1.BackupMethodPlugin:           {},
+}
+
 // TriggerBackup creates an on-demand Backup CR for the given cluster.
+// It verifies that the target cluster exists and that req.Method (if provided)
+// is one of the allowed values before creating the Backup CR.
 func (s *service) TriggerBackup(ctx context.Context, clusterName string, req api.TriggerBackupRequest) (*api.BackupSummary, error) {
+	// Verify the cluster exists before creating the Backup CR.
+	var cl cnpgv1.Cluster
+	clKey := client.ObjectKey{Namespace: s.namespace, Name: clusterName}
+	if err := s.client.Get(ctx, clKey, &cl); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, fmt.Errorf("cluster %q not found", clusterName)
+		}
+		return nil, fmt.Errorf("get cluster %q: %w", clusterName, err)
+	}
+
 	method := cnpgv1.BackupMethodBarmanObjectStore
 	if req.Method != "" {
-		method = cnpgv1.BackupMethod(req.Method)
+		m := cnpgv1.BackupMethod(req.Method)
+		if _, ok := validBackupMethods[m]; !ok {
+			return nil, fmt.Errorf("invalid backup method %q: must be one of barmanObjectStore, volumeSnapshot, plugin", req.Method)
+		}
+		method = m
 	}
 
 	b := &cnpgv1.Backup{
@@ -134,6 +157,9 @@ func (s *service) CreateScheduledBackup(ctx context.Context, clusterName string,
 }
 
 // DeleteScheduledBackup removes a ScheduledBackup CR by name.
+// It verifies that the ScheduledBackup belongs to clusterName before deleting;
+// if it belongs to a different cluster it returns a not-found error to avoid
+// leaking the existence of resources owned by other clusters.
 func (s *service) DeleteScheduledBackup(ctx context.Context, clusterName, name string) error {
 	var sb cnpgv1.ScheduledBackup
 	key := client.ObjectKey{Namespace: s.namespace, Name: name}
@@ -142,6 +168,10 @@ func (s *service) DeleteScheduledBackup(ctx context.Context, clusterName, name s
 			return fmt.Errorf("scheduled backup %q not found", name)
 		}
 		return fmt.Errorf("get scheduled backup %q: %w", name, err)
+	}
+	// Ownership check: reject the delete if the backup belongs to a different cluster.
+	if sb.Spec.Cluster.Name != clusterName {
+		return fmt.Errorf("scheduled backup %q not found", name)
 	}
 	if err := s.client.Delete(ctx, &sb); err != nil {
 		return fmt.Errorf("delete scheduled backup %q: %w", name, err)
