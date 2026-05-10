@@ -182,8 +182,8 @@ func run() error {
 		r.Patch("/api/v1/clusters/{name}/scale", requireService(clusterSvc, clusterHandler.ScaleCluster))
 
 		// Postgres config
-		r.Get("/api/v1/clusters/{name}/postgres-config", requireService(configSvc, configHandler.GetPostgresConfig))
-		r.Put("/api/v1/clusters/{name}/postgres-config", requireService(configSvc, configHandler.UpdatePostgresConfig))
+		r.Get("/api/v1/clusters/{name}/config", requireService(configSvc, configHandler.GetPostgresConfig))
+		r.Put("/api/v1/clusters/{name}/config", requireService(configSvc, configHandler.UpdatePostgresConfig))
 
 		// Backups
 		r.Get("/api/v1/clusters/{name}/backups", requireService(backupSvc, backupHandler.ListBackups))
