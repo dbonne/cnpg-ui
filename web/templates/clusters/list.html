@@ -1,0 +1,58 @@
+{{template "layout" .}}
+
+{{define "title"}}Clusters — CNPG Web UI{{end}}
+
+{{define "content"}}
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem;">
+  <h2 style="font-size:1.25rem; font-weight:600; color:#1a1a2e;">Clusters</h2>
+  <a href="/ui/clusters/new" class="btn btn-primary">+ New Cluster</a>
+</div>
+
+<div
+  id="cluster-list"
+  hx-get="/ui/clusters"
+  hx-trigger="sse:cluster-update from:body"
+  hx-swap="outerHTML"
+  hx-target="#cluster-list">
+
+  {{if .Clusters}}
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Status</th>
+        <th>Instances</th>
+        <th>Age</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Clusters}}
+      <tr>
+        <td><a href="/ui/clusters/{{.Name}}" style="color:#3b82f6; text-decoration:none; font-weight:500;">{{.Name}}</a></td>
+        <td><span class="badge {{.StatusClass}}">{{.Status}}</span></td>
+        <td>{{.Instances}}</td>
+        <td>{{.Age}}</td>
+        <td style="display:flex; gap:0.5rem;">
+          <a href="/ui/clusters/{{.Name}}" class="btn btn-sm btn-primary">View</a>
+          <button
+            class="btn btn-sm btn-danger"
+            hx-delete="/api/v1/clusters/{{.Name}}"
+            hx-confirm="Delete cluster {{.Name}}? This cannot be undone."
+            hx-target="#cluster-list"
+            hx-swap="outerHTML">
+            Delete
+          </button>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center; padding:3rem; background:#fff; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+    <p style="color:#6b7280; font-size:0.95rem;">No clusters found in this namespace.</p>
+    <a href="/ui/clusters/new" class="btn btn-primary" style="margin-top:1rem;">Create your first cluster</a>
+  </div>
+  {{end}}
+</div>
+{{end}}

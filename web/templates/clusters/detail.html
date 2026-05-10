@@ -1,0 +1,114 @@
+{{template "layout" .}}
+
+{{define "title"}}{{.ClusterName}} — CNPG Web UI{{end}}
+
+{{define "content"}}
+<!-- Header -->
+<div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+  <a href="/ui/clusters" style="color:#6b7280; text-decoration:none; font-size:0.85rem;">← Clusters</a>
+  <h2 style="font-size:1.25rem; font-weight:600; color:#1a1a2e;">{{.ClusterName}}</h2>
+  <span class="badge {{.StatusClass}}">{{.Status}}</span>
+  <div style="margin-left:auto; display:flex; gap:0.5rem;">
+    <button
+      class="btn btn-primary btn-sm"
+      hx-get="/ui/clusters/{{.ClusterName}}/scale-dialog"
+      hx-target="#modal-container"
+      hx-swap="innerHTML">
+      Scale
+    </button>
+    <button
+      class="btn btn-danger btn-sm"
+      hx-delete="/api/v1/clusters/{{.ClusterName}}"
+      hx-confirm="Delete cluster {{.ClusterName}}? This cannot be undone."
+      hx-on::after-request="window.location='/ui/clusters'">
+      Delete
+    </button>
+  </div>
+</div>
+
+<!-- Tab navigation -->
+<div x-data="{ tab: 'overview' }" style="background:#fff; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.1); overflow:hidden;">
+  <div style="display:flex; border-bottom:2px solid #e2e8f0; background:#f8fafc;">
+    <button
+      class="tab-btn"
+      :class="tab === 'overview' ? 'tab-active' : ''"
+      @click="tab = 'overview'"
+      style="padding:0.75rem 1.5rem; border:none; background:transparent; cursor:pointer; font-size:0.875rem; font-weight:500; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all 0.15s;"
+      :style="tab === 'overview' ? 'color:#1a1a2e; border-bottom-color:#3b82f6;' : ''">
+      Overview
+    </button>
+    <button
+      class="tab-btn"
+      :class="tab === 'logs' ? 'tab-active' : ''"
+      @click="tab = 'logs'"
+      style="padding:0.75rem 1.5rem; border:none; background:transparent; cursor:pointer; font-size:0.875rem; font-weight:500; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all 0.15s;"
+      :style="tab === 'logs' ? 'color:#1a1a2e; border-bottom-color:#3b82f6;' : ''">
+      Logs
+    </button>
+    <button
+      class="tab-btn"
+      :class="tab === 'config' ? 'tab-active' : ''"
+      @click="tab = 'config'"
+      style="padding:0.75rem 1.5rem; border:none; background:transparent; cursor:pointer; font-size:0.875rem; font-weight:500; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all 0.15s;"
+      :style="tab === 'config' ? 'color:#1a1a2e; border-bottom-color:#3b82f6;' : ''">
+      Config
+    </button>
+    <button
+      class="tab-btn"
+      :class="tab === 'backups' ? 'tab-active' : ''"
+      @click="tab = 'backups'"
+      style="padding:0.75rem 1.5rem; border:none; background:transparent; cursor:pointer; font-size:0.875rem; font-weight:500; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-2px; transition:all 0.15s;"
+      :style="tab === 'backups' ? 'color:#1a1a2e; border-bottom-color:#3b82f6;' : ''">
+      Backups
+    </button>
+  </div>
+
+  <!-- Tab content — HTMX loads partial on tab switch -->
+  <div style="padding:1.5rem;">
+
+    <!-- Overview Tab -->
+    <div x-show="tab === 'overview'">
+      <div
+        hx-get="/ui/clusters/{{.ClusterName}}/overview"
+        hx-trigger="load, sse:cluster-update from:body"
+        hx-swap="innerHTML">
+        <p style="color:#6b7280; font-size:0.9rem;">Loading overview…</p>
+      </div>
+    </div>
+
+    <!-- Logs Tab -->
+    <div x-show="tab === 'logs'" x-cloak>
+      <div
+        hx-get="/ui/clusters/{{.ClusterName}}/logs-panel"
+        hx-trigger="intersect once"
+        hx-swap="innerHTML">
+        <p style="color:#6b7280; font-size:0.9rem;">Loading logs…</p>
+      </div>
+    </div>
+
+    <!-- Config Tab -->
+    <div x-show="tab === 'config'" x-cloak>
+      <div
+        hx-get="/ui/clusters/{{.ClusterName}}/config-panel"
+        hx-trigger="intersect once"
+        hx-swap="innerHTML">
+        <p style="color:#6b7280; font-size:0.9rem;">Loading config…</p>
+      </div>
+    </div>
+
+    <!-- Backups Tab -->
+    <div x-show="tab === 'backups'" x-cloak>
+      <div
+        hx-get="/ui/clusters/{{.ClusterName}}/backups-panel"
+        hx-trigger="intersect once"
+        hx-swap="innerHTML">
+        <p style="color:#6b7280; font-size:0.9rem;">Loading backups…</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal container for dialogs (scale, etc.) -->
+<div id="modal-container"></div>
+{{end}}
