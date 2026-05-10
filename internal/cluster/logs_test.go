@@ -48,7 +48,7 @@ func TestLogsHandler_HistoricalLogs_ClusterNotFound(t *testing.T) {
 	scheme := buildScheme()
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	logSvc := cluster.NewLogService(fakeClient, "default")
+	logSvc := cluster.NewLogService(fakeClient, nil, "default")
 	handler := cluster.NewLogHandler(logSvc)
 
 	r := chi.NewRouter()
@@ -74,7 +74,7 @@ func TestLogsHandler_HistoricalLogs_NoPrimaryPod(t *testing.T) {
 		WithObjects(cl).
 		Build()
 
-	logSvc := cluster.NewLogService(fakeClient, "default")
+	logSvc := cluster.NewLogService(fakeClient, nil, "default")
 	handler := cluster.NewLogHandler(logSvc)
 
 	r := chi.NewRouter()
@@ -106,7 +106,7 @@ func TestLogsHandler_StreamLogs_SetsSseHeaders(t *testing.T) {
 		WithObjects(cl, pod).
 		Build()
 
-	logSvc := cluster.NewLogService(fakeClient, "default")
+	logSvc := cluster.NewLogService(fakeClient, nil, "default")
 	handler := cluster.NewLogHandler(logSvc)
 
 	r := chi.NewRouter()
@@ -141,7 +141,7 @@ func TestLogsHandler_StreamLogs_ClusterNotFound(t *testing.T) {
 	scheme := buildScheme()
 	fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	logSvc := cluster.NewLogService(fakeClient, "default")
+	logSvc := cluster.NewLogService(fakeClient, nil, "default")
 	handler := cluster.NewLogHandler(logSvc)
 
 	r := chi.NewRouter()
@@ -195,7 +195,7 @@ func TestLogsHandler_StreamOutput_ContainsPodName(t *testing.T) {
 		WithObjects(cl, pod).
 		Build()
 
-	logSvc := cluster.NewLogService(fakeClient, "default")
+	logSvc := cluster.NewLogService(fakeClient, nil, "default")
 	handler := cluster.NewLogHandler(logSvc)
 
 	r := chi.NewRouter()
