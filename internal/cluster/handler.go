@@ -66,6 +66,28 @@ func (h *Handler) CreateCluster(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, detail)
 }
 
+// UpdateCluster handles PUT /api/v1/clusters/{name}.
+func (h *Handler) UpdateCluster(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+
+	var req api.UpdateClusterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, apierr.CodeValidation, "invalid request body: "+err.Error())
+		return
+	}
+
+	detail, err := h.svc.Update(r.Context(), name, req)
+	if err != nil {
+		if isNotFound(err) {
+			writeError(w, http.StatusNotFound, apierr.CodeNotFound, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, apierr.CodeInternal, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
+}
+
 // ScaleCluster handles PATCH /api/v1/clusters/{name}/scale.
 func (h *Handler) ScaleCluster(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")

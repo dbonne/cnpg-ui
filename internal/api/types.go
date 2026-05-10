@@ -105,6 +105,14 @@ type ScaleClusterRequest struct {
 	Instances int `json:"instances"`
 }
 
+// UpdateClusterRequest is the body for PUT /api/v1/clusters/{name}.
+// Only fields present (non-zero) in the request are applied.
+type UpdateClusterRequest struct {
+	Instances   int    `json:"instances,omitempty"`
+	StorageSize string `json:"storageSize,omitempty"`
+	ImageName   string `json:"imageName,omitempty"`
+}
+
 // ── Backup ────────────────────────────────────────────────────────────────────
 
 // BackupSummary represents a single Backup CR.

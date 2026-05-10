@@ -18,15 +18,17 @@ import (
 
 // stubService is a test double for cluster.Service.
 type stubService struct {
-	listResult  []api.ClusterSummary
-	listErr     error
-	getResult   *api.ClusterDetail
-	getErr      error
+	listResult   []api.ClusterSummary
+	listErr      error
+	getResult    *api.ClusterDetail
+	getErr       error
 	createResult *api.ClusterDetail
-	createErr   error
-	scaleResult *api.ClusterDetail
-	scaleErr    error
-	deleteErr   error
+	createErr    error
+	updateResult *api.ClusterDetail
+	updateErr    error
+	scaleResult  *api.ClusterDetail
+	scaleErr     error
+	deleteErr    error
 }
 
 func (s *stubService) List(_ context.Context) ([]api.ClusterSummary, error) {
@@ -37,6 +39,9 @@ func (s *stubService) Get(_ context.Context, _ string) (*api.ClusterDetail, erro
 }
 func (s *stubService) Create(_ context.Context, _ api.CreateClusterRequest) (*api.ClusterDetail, error) {
 	return s.createResult, s.createErr
+}
+func (s *stubService) Update(_ context.Context, _ string, _ api.UpdateClusterRequest) (*api.ClusterDetail, error) {
+	return s.updateResult, s.updateErr
 }
 func (s *stubService) Scale(_ context.Context, _ string, _ api.ScaleClusterRequest) (*api.ClusterDetail, error) {
 	return s.scaleResult, s.scaleErr
@@ -201,6 +206,77 @@ func TestCreateCluster_Handler_InvalidBody(t *testing.T) {
 		strings.NewReader("not json"))
 	r.Header.Set("Content-Type", "application/json")
 	h.CreateCluster(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status: got %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+// TestUpdateCluster_Handler_OK verifies UpdateCluster returns 200 with updated detail.
+func TestUpdateCluster_Handler_OK(t *testing.T) {
+	t.Parallel()
+
+	svc := &stubService{
+		updateResult: &api.ClusterDetail{
+			ClusterSummary: api.ClusterSummary{
+				Name: "prod", Instances: 5, Status: api.StatusHealthy,
+			},
+			StorageSize: "20Gi",
+		},
+	}
+	h := cluster.NewHandler(svc)
+
+	body, _ := json.Marshal(api.UpdateClusterRequest{Instances: 5, StorageSize: "20Gi"})
+	w := httptest.NewRecorder()
+	r := routedRequest(http.MethodPut, "/api/v1/clusters/prod",
+		body, map[string]string{"name": "prod"})
+	h.UpdateCluster(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status: got %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var detail api.ClusterDetail
+	if err := json.NewDecoder(w.Body).Decode(&detail); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if detail.Instances != 5 {
+		t.Errorf("Instances: got %d, want 5", detail.Instances)
+	}
+	if detail.StorageSize != "20Gi" {
+		t.Errorf("StorageSize: got %q, want 20Gi", detail.StorageSize)
+	}
+}
+
+// TestUpdateCluster_Handler_NotFound verifies UpdateCluster returns 404 for missing cluster.
+func TestUpdateCluster_Handler_NotFound(t *testing.T) {
+	t.Parallel()
+
+	svc := &stubService{updateErr: fmt.Errorf("cluster \"ghost\" not found")}
+	h := cluster.NewHandler(svc)
+
+	body, _ := json.Marshal(api.UpdateClusterRequest{Instances: 3})
+	w := httptest.NewRecorder()
+	r := routedRequest(http.MethodPut, "/api/v1/clusters/ghost",
+		body, map[string]string{"name": "ghost"})
+	h.UpdateCluster(w, r)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status: got %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
+
+// TestUpdateCluster_Handler_InvalidBody verifies UpdateCluster returns 400 for bad JSON.
+func TestUpdateCluster_Handler_InvalidBody(t *testing.T) {
+	t.Parallel()
+
+	svc := &stubService{}
+	h := cluster.NewHandler(svc)
+
+	w := httptest.NewRecorder()
+	r := routedRequest(http.MethodPut, "/api/v1/clusters/prod",
+		[]byte("not json"), map[string]string{"name": "prod"})
+	h.UpdateCluster(w, r)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d, want %d", w.Code, http.StatusBadRequest)

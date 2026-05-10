@@ -21,6 +21,7 @@ type Service interface {
 	List(ctx context.Context) ([]api.ClusterSummary, error)
 	Get(ctx context.Context, name string) (*api.ClusterDetail, error)
 	Create(ctx context.Context, req api.CreateClusterRequest) (*api.ClusterDetail, error)
+	Update(ctx context.Context, name string, req api.UpdateClusterRequest) (*api.ClusterDetail, error)
 	Scale(ctx context.Context, name string, req api.ScaleClusterRequest) (*api.ClusterDetail, error)
 	Delete(ctx context.Context, name string) error
 }
@@ -101,6 +102,38 @@ func (s *service) Create(ctx context.Context, req api.CreateClusterRequest) (*ap
 			return nil, fmt.Errorf("cluster %q already exists", req.Name)
 		}
 		return nil, fmt.Errorf("create cluster: %w", err)
+	}
+
+	detail := toDetail(cl)
+	return &detail, nil
+}
+
+// Update patches the spec fields of an existing Cluster CR from the request body.
+// Only non-zero fields in the request are applied.
+func (s *service) Update(ctx context.Context, name string, req api.UpdateClusterRequest) (*api.ClusterDetail, error) {
+	cl, err := s.fetchCluster(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	patch := client.MergeFrom(cl.DeepCopy())
+
+	if req.Instances > 0 {
+		cl.Spec.Instances = req.Instances
+	}
+	if req.StorageSize != "" {
+		storageSize, err := resource.ParseQuantity(req.StorageSize)
+		if err != nil {
+			return nil, fmt.Errorf("invalid storageSize %q: %w", req.StorageSize, err)
+		}
+		cl.Spec.StorageConfiguration.Size = storageSize.String()
+	}
+	if req.ImageName != "" {
+		cl.Spec.ImageName = req.ImageName
+	}
+
+	if err := s.client.Patch(ctx, cl, patch); err != nil {
+		return nil, fmt.Errorf("update cluster %q: %w", name, err)
 	}
 
 	detail := toDetail(cl)

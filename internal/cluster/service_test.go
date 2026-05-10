@@ -177,6 +177,62 @@ func TestCreateCluster_MinimalSpec(t *testing.T) {
 	}
 }
 
+// TestUpdateCluster_Instances verifies Update patches instances field.
+func TestUpdateCluster_Instances(t *testing.T) {
+	t.Parallel()
+
+	scheme := newScheme()
+	cl := fakeCluster("prod", "default", cnpgv1.PhaseHealthy, 1)
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(cl).
+		WithStatusSubresource(cl).
+		Build()
+
+	svc := cluster.NewService(fakeClient, "default")
+	detail, err := svc.Update(context.Background(), "prod", api.UpdateClusterRequest{Instances: 4})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	if detail.Instances != 4 {
+		t.Errorf("Instances after update: got %d, want 4", detail.Instances)
+	}
+}
+
+// TestUpdateCluster_NotFound verifies Update returns an error for missing clusters.
+func TestUpdateCluster_NotFound(t *testing.T) {
+	t.Parallel()
+
+	fakeClient := fake.NewClientBuilder().WithScheme(newScheme()).Build()
+	svc := cluster.NewService(fakeClient, "default")
+
+	_, err := svc.Update(context.Background(), "ghost", api.UpdateClusterRequest{Instances: 2})
+	if err == nil {
+		t.Fatal("expected error for non-existent cluster, got nil")
+	}
+}
+
+// TestUpdateCluster_InvalidStorageSize verifies Update rejects bad storage quantity.
+func TestUpdateCluster_InvalidStorageSize(t *testing.T) {
+	t.Parallel()
+
+	scheme := newScheme()
+	cl := fakeCluster("prod", "default", cnpgv1.PhaseHealthy, 1)
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(cl).
+		Build()
+
+	svc := cluster.NewService(fakeClient, "default")
+	_, err := svc.Update(context.Background(), "prod", api.UpdateClusterRequest{StorageSize: "not-a-size"})
+	if err == nil {
+		t.Fatal("expected error for invalid storageSize, got nil")
+	}
+}
+
 // TestScaleCluster_Up verifies that Scale updates the instances field in the CR.
 func TestScaleCluster_Up(t *testing.T) {
 	t.Parallel()

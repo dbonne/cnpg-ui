@@ -177,6 +177,7 @@ func run() error {
 		r.Get("/api/v1/clusters", requireService(clusterSvc, clusterHandler.ListClusters))
 		r.Post("/api/v1/clusters", requireService(clusterSvc, clusterHandler.CreateCluster))
 		r.Get("/api/v1/clusters/{name}", requireService(clusterSvc, clusterHandler.GetCluster))
+		r.Put("/api/v1/clusters/{name}", requireService(clusterSvc, clusterHandler.UpdateCluster))
 		r.Delete("/api/v1/clusters/{name}", requireService(clusterSvc, clusterHandler.DeleteCluster))
 		r.Patch("/api/v1/clusters/{name}/scale", requireService(clusterSvc, clusterHandler.ScaleCluster))
 
