@@ -60,6 +60,7 @@ func run() error {
 	// K8s client is available, the watcher is wired into the informer to feed the hub.
 	sseHub := hub.New()
 	hubCtx, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
 	go sseHub.Run(hubCtx)
 
 	if k8sClient != nil {
@@ -277,8 +278,7 @@ func run() error {
 		return fmt.Errorf("server error: %w", err)
 	case <-ctx.Done():
 		logger.Info("shutting down gracefully")
-		// Stop the SSE hub — all open SSE connections will be closed.
-		hubCancel()
+		// hubCancel is called via defer above; no explicit call needed here.
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
