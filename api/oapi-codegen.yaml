@@ -1,0 +1,18 @@
+# oapi-codegen configuration for CNPG Web UI.
+# Run: oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+#
+# This generates internal/api/generated.go with:
+#   - All request/response types as Go structs
+#   - ServerInterface — the handler contract each domain package must implement
+#   - Strict server wrappers (input validation before handler invocation)
+#
+# NOTE: oapi-codegen must be installed: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+package: api
+output: ../internal/api/generated.go
+generate:
+  - types
+  - server
+  - strict-server
+  - spec
+output-options:
+  nullable-type: pointer

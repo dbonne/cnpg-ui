@@ -1,0 +1,731 @@
+openapi: "3.0.3"
+info:
+  title: CNPG Web UI API
+  description: |
+    REST API for the CloudNativePG Web UI. Provides CRUD operations for
+    CNPG Cluster CRs, backup management, pooler read access, and Postgres
+    parameter configuration.
+  version: "1.0.0"
+
+servers:
+  - url: /api/v1
+    description: Versioned API base path
+
+security:
+  - bearerAuth: []
+  - sessionCookie: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: cnpg-ui-session
+
+  schemas:
+    # ── Error ──────────────────────────────────────────────────────────────────
+    Error:
+      type: object
+      required: [error, code]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          enum:
+            - NOT_FOUND
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - CONFLICT
+            - VALIDATION_ERROR
+            - INTERNAL_ERROR
+          description: Machine-readable error code
+        details:
+          type: object
+          additionalProperties: true
+          description: Optional additional error details
+
+    # ── Auth ───────────────────────────────────────────────────────────────────
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+
+    LoginResponse:
+      type: object
+      required: [token, username]
+      properties:
+        token:
+          type: string
+          description: Bearer token for API access (equals session ID)
+        username:
+          type: string
+
+    ChangePasswordRequest:
+      type: object
+      required: [old_password, new_password]
+      properties:
+        old_password:
+          type: string
+          minLength: 1
+        new_password:
+          type: string
+          minLength: 12
+          description: New password (minimum 12 characters)
+
+    # ── Cluster ────────────────────────────────────────────────────────────────
+    NormalizedStatus:
+      type: string
+      enum: [HEALTHY, TRANSIENT, FAULT, HIBERNATED]
+      description: Normalized cluster status (abstraction over CNPG phase strings)
+
+    ClusterSummary:
+      type: object
+      required: [name, namespace, instances, readyInstances, status]
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        instances:
+          type: integer
+          minimum: 1
+        readyInstances:
+          type: integer
+          minimum: 0
+        status:
+          $ref: "#/components/schemas/NormalizedStatus"
+        phase:
+          type: string
+          description: Raw CNPG phase string
+        currentPrimary:
+          type: string
+
+    ClusterDetail:
+      allOf:
+        - $ref: "#/components/schemas/ClusterSummary"
+        - type: object
+          properties:
+            storageSize:
+              type: string
+              description: Storage size (e.g. "10Gi")
+            pgVersion:
+              type: integer
+              description: PostgreSQL major version
+            imageName:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+
+    CreateClusterRequest:
+      type: object
+      required: [name, instances, storageSize]
+      properties:
+        name:
+          type: string
+          pattern: "^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$"
+        namespace:
+          type: string
+          default: "default"
+        instances:
+          type: integer
+          minimum: 1
+        storageSize:
+          type: string
+          description: Storage size (e.g. "10Gi")
+        pgVersion:
+          type: integer
+          default: 17
+        imageName:
+          type: string
+
+    ScaleClusterRequest:
+      type: object
+      required: [instances]
+      properties:
+        instances:
+          type: integer
+          minimum: 1
+
+    # ── Backup ─────────────────────────────────────────────────────────────────
+    BackupSummary:
+      type: object
+      required: [name, clusterName, phase]
+      properties:
+        name:
+          type: string
+        clusterName:
+          type: string
+        phase:
+          type: string
+          enum: [pending, started, running, finalizing, completed, failed, walArchivingFailing]
+        startedAt:
+          type: string
+          format: date-time
+        stoppedAt:
+          type: string
+          format: date-time
+        method:
+          type: string
+          enum: [barmanObjectStore, volumeSnapshot, plugin]
+
+    TriggerBackupRequest:
+      type: object
+      properties:
+        method:
+          type: string
+          enum: [barmanObjectStore, volumeSnapshot, plugin]
+          default: barmanObjectStore
+
+    ScheduledBackupSummary:
+      type: object
+      required: [name, clusterName, schedule]
+      properties:
+        name:
+          type: string
+        clusterName:
+          type: string
+        schedule:
+          type: string
+          description: Cron expression
+        immediate:
+          type: boolean
+        suspended:
+          type: boolean
+
+    CreateScheduledBackupRequest:
+      type: object
+      required: [name, schedule]
+      properties:
+        name:
+          type: string
+        schedule:
+          type: string
+          description: Cron expression
+        immediate:
+          type: boolean
+          default: false
+
+    # ── Pooler ─────────────────────────────────────────────────────────────────
+    PoolerSummary:
+      type: object
+      required: [name, clusterName, type, instances]
+      properties:
+        name:
+          type: string
+        clusterName:
+          type: string
+        type:
+          type: string
+          enum: [rw, ro]
+        instances:
+          type: integer
+          minimum: 1
+        poolMode:
+          type: string
+          enum: [session, transaction]
+        maxClientConn:
+          type: integer
+
+    # ── Postgres Config ────────────────────────────────────────────────────────
+    PgParamMetadata:
+      type: object
+      required: [name, type, currentValue]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [string, integer, real, bool, enum]
+        currentValue:
+          type: string
+        defaultValue:
+          type: string
+        requiresRestart:
+          type: boolean
+          description: True if changing this parameter requires a cluster restart
+
+    PgConfigResponse:
+      type: object
+      required: [parameters, requiresRestart]
+      properties:
+        parameters:
+          type: array
+          items:
+            $ref: "#/components/schemas/PgParamMetadata"
+        requiresRestart:
+          type: boolean
+          description: True if any pending parameter change requires a restart
+
+    UpdatePgConfigRequest:
+      type: object
+      required: [parameters]
+      properties:
+        parameters:
+          type: object
+          additionalProperties:
+            type: string
+          description: Map of parameter name → new value (as string)
+
+paths:
+  # ── Auth ─────────────────────────────────────────────────────────────────────
+  /auth/login:
+    post:
+      operationId: login
+      summary: Authenticate with username and password
+      security: []
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Invalidate current session
+      tags: [auth]
+      responses:
+        "204":
+          description: Logged out
+
+  /auth/password:
+    put:
+      operationId: changePassword
+      summary: Change admin password
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        "401":
+          description: Old password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: New password too weak
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ── Clusters ─────────────────────────────────────────────────────────────────
+  /clusters:
+    get:
+      operationId: listClusters
+      summary: List all CNPG Cluster CRs
+      tags: [clusters]
+      responses:
+        "200":
+          description: Cluster list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClusterSummary"
+
+    post:
+      operationId: createCluster
+      summary: Create a new CNPG Cluster CR
+      tags: [clusters]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClusterRequest"
+      responses:
+        "201":
+          description: Cluster created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterDetail"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /clusters/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      operationId: getCluster
+      summary: Get a single CNPG Cluster CR
+      tags: [clusters]
+      responses:
+        "200":
+          description: Cluster detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterDetail"
+        "404":
+          description: Cluster not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    delete:
+      operationId: deleteCluster
+      summary: Delete a CNPG Cluster CR
+      tags: [clusters]
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /clusters/{name}/scale:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      operationId: scaleCluster
+      summary: Scale cluster replica count
+      tags: [clusters]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScaleClusterRequest"
+      responses:
+        "200":
+          description: Scaled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Validation error (e.g. instances < 1)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /clusters/{name}/postgres-config:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      operationId: getPostgresConfig
+      summary: Get Postgres configuration with type metadata
+      tags: [postgres-config]
+      responses:
+        "200":
+          description: Config parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PgConfigResponse"
+        "404":
+          description: Cluster not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    put:
+      operationId: updatePostgresConfig
+      summary: Update Postgres configuration parameters
+      tags: [postgres-config]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePgConfigRequest"
+      responses:
+        "200":
+          description: Config updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PgConfigResponse"
+        "404":
+          description: Cluster not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: Invalid parameter value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ── Backups ───────────────────────────────────────────────────────────────────
+  /clusters/{name}/backups:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      operationId: listBackups
+      summary: List backups for a cluster
+      tags: [backups]
+      responses:
+        "200":
+          description: Backup list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BackupSummary"
+
+    post:
+      operationId: triggerBackup
+      summary: Trigger an on-demand backup
+      tags: [backups]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TriggerBackupRequest"
+      responses:
+        "202":
+          description: Backup accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupSummary"
+        "404":
+          description: Cluster not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Cluster not in a healthy state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ── Scheduled Backups ─────────────────────────────────────────────────────────
+  /clusters/{name}/scheduled-backups:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      operationId: listScheduledBackups
+      summary: List scheduled backups for a cluster
+      tags: [backups]
+      responses:
+        "200":
+          description: Scheduled backup list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduledBackupSummary"
+
+    post:
+      operationId: createScheduledBackup
+      summary: Create a scheduled backup
+      tags: [backups]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduledBackupRequest"
+      responses:
+        "201":
+          description: Scheduled backup created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledBackupSummary"
+
+  /clusters/{name}/scheduled-backups/{id}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      operationId: getScheduledBackup
+      summary: Get a specific scheduled backup
+      tags: [backups]
+      responses:
+        "200":
+          description: Scheduled backup detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduledBackupSummary"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    delete:
+      operationId: deleteScheduledBackup
+      summary: Delete a scheduled backup
+      tags: [backups]
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ── Poolers ───────────────────────────────────────────────────────────────────
+  /clusters/{name}/poolers:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      operationId: listPoolers
+      summary: List poolers for a cluster
+      tags: [poolers]
+      responses:
+        "200":
+          description: Pooler list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PoolerSummary"
+
+  /clusters/{name}/poolers/{poolerName}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: poolerName
+        in: path
+        required: true
+        schema:
+          type: string
+
+    get:
+      operationId: getPooler
+      summary: Get a specific pooler
+      tags: [poolers]
+      responses:
+        "200":
+          description: Pooler detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PoolerSummary"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ── OpenAPI spec self-serve ───────────────────────────────────────────────────
+  /openapi.json:
+    get:
+      operationId: getOpenAPISpec
+      summary: Serve this OpenAPI specification as JSON
+      security: []
+      tags: [meta]
+      responses:
+        "200":
+          description: OpenAPI spec
+          content:
+            application/json:
+              schema:
+                type: object
