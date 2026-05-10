@@ -155,11 +155,9 @@ func run() error {
 
 	// OpenAPI spec — no auth required.
 	// /api/v1/openapi.yaml serves the embedded spec as YAML.
-	// /api/v1/openapi.json redirects to the YAML endpoint for convenience.
+	// /api/v1/openapi.json serves the same spec converted to JSON.
 	r.Get("/api/v1/openapi.yaml", serveOpenAPISpec)
-	r.Get("/api/v1/openapi.json", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/api/v1/openapi.yaml", http.StatusMovedPermanently)
-	})
+	r.Get("/api/v1/openapi.json", serveOpenAPISpecJSON)
 
 	// ── Auth endpoints (no session required) ──────────────────────────────────
 	r.Post("/api/v1/auth/login", authHandler.APILogin)
@@ -315,6 +313,14 @@ func serveOpenAPISpec(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(openapipkg.SpecYAML)
+}
+
+// serveOpenAPISpecJSON serves the embedded OpenAPI specification as JSON.
+// The YAML spec is converted to JSON once at startup in the openapi package.
+func serveOpenAPISpecJSON(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(openapipkg.SpecJSON())
 }
 
 // rejectAllValidator is a SessionValidator that rejects every session.
