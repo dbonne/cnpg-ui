@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/dbonne/cnpg-ui/internal/config"
+	"github.com/dbonne/cnpg-ui/internal/k8s"
 )
 
 func main() {
@@ -35,6 +36,30 @@ func run() error {
 
 	logger := newLogger(cfg.LogLevel)
 	slog.SetDefault(logger)
+
+	// ── K8s client layer ──────────────────────────────────────────────────────
+	// Build the runtime scheme with all CNPG CRD types registered.
+	scheme := k8s.NewScheme()
+
+	// Attempt to create a real K8s client (in-cluster config with kubeconfig fallback).
+	// In dev environments without a running cluster this will log a warning and continue.
+	k8sClient, err := k8s.NewClient(scheme)
+	if err != nil {
+		logger.Warn("K8s client unavailable — running without cluster access", "err", err)
+	}
+
+	if k8sClient != nil {
+		clusterReader := k8s.NewClusterReader(k8sClient)
+		_ = clusterReader // wired in PR 4 when service layer is added
+
+		// Informer manager — syncs CRD caches in background.
+		// Production wiring: pass rest.Config separately (done when cfg is threaded through).
+		// For now, no-op is fine (no real cluster in dev).
+		informerMgr := k8s.NewInformerManager(nil, scheme)
+		go informerMgr.Start(context.Background())
+		_ = informerMgr.WaitForSync
+	}
+	// ─────────────────────────────────────────────────────────────────────────
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
