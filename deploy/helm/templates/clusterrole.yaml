@@ -1,0 +1,31 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "cnpg-ui.fullname" . }}
+  labels:
+    {{- include "cnpg-ui.labels" . | nindent 4 }}
+rules:
+  # CNPG Cluster CRDs — full CRUD for the UI to manage clusters.
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # CNPG Backup CRDs — full CRUD for backup management.
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["backups"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # CNPG ScheduledBackup CRDs — full CRUD for scheduled backup management.
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["scheduledbackups"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # CNPG Pooler CRDs — read-only; poolers are managed by CNPG itself.
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["poolers"]
+    verbs: ["get", "list", "watch"]
+  # Secrets — read access so the UI can validate credentials.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+  # Pods — read access for log streaming.
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]

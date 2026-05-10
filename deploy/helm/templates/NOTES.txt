@@ -20,4 +20,4 @@ CNPG Web UI has been installed.
 {{- end }}
 
 Access the UI at:
-  http{{ if and .Values.tls .Values.tls.enabled }}s{{ end }}://{{ .Values.ingress.host | default "localhost" }}
+  http{{ if and .Values.tls .Values.tls.enabled }}s{{ end }}://{{ (.Values.ingress).host | default "localhost" }}
