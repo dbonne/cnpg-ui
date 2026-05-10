@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -18,12 +19,15 @@ const UsernameContextKey contextKey = "username"
 
 // Handler holds all HTTP handlers for auth endpoints.
 type Handler struct {
-	svc Service
+	svc          Service
+	secureCookie bool
 }
 
 // NewHandler creates a new Handler backed by the given Service.
-func NewHandler(svc Service) *Handler {
-	return &Handler{svc: svc}
+// secureCookie must be true when the server is configured to use TLS, so that
+// session cookies are marked Secure and browsers send them over HTTPS only.
+func NewHandler(svc Service, secureCookie bool) *Handler {
+	return &Handler{svc: svc, secureCookie: secureCookie}
 }
 
 // ── API handlers ─────────────────────────────────────────────────────────────
@@ -51,7 +55,7 @@ func (h *Handler) APILogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setSessionCookie(w, sess.ID, sess.ExpiresAt)
+	setSessionCookie(w, sess.ID, sess.ExpiresAt, h.secureCookie)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -68,7 +72,7 @@ func (h *Handler) APILogout(w http.ResponseWriter, r *http.Request) {
 	if token != "" {
 		h.svc.Logout(token)
 	}
-	clearSessionCookie(w)
+	clearSessionCookie(w, h.secureCookie)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -92,6 +96,18 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid request body","code":"VALIDATION_ERROR"}`,
 			http.StatusBadRequest)
+		return
+	}
+
+	// Validate minimum password length as declared in the OpenAPI spec (minLength: 12).
+	const minPasswordLength = 12
+	if len(req.NewPassword) < minPasswordLength {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error": fmt.Sprintf("new_password must be at least %d characters", minPasswordLength),
+			"code":  "VALIDATION_ERROR",
+		})
 		return
 	}
 
@@ -123,7 +139,7 @@ func (h *Handler) UILogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setSessionCookie(w, sess.ID, sess.ExpiresAt)
+	setSessionCookie(w, sess.ID, sess.ExpiresAt, h.secureCookie)
 	http.Redirect(w, r, "/ui/clusters", http.StatusSeeOther)
 }
 
@@ -132,27 +148,30 @@ func (h *Handler) UILogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("cnpg-ui-session"); err == nil {
 		h.svc.Logout(cookie.Value)
 	}
-	clearSessionCookie(w)
+	clearSessionCookie(w, h.secureCookie)
 	http.Redirect(w, r, "/ui/login", http.StatusSeeOther)
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 // setSessionCookie writes the cnpg-ui-session cookie to the response.
-func setSessionCookie(w http.ResponseWriter, sessionID string, expiresAt time.Time) {
+// secure must be true only when the server is using TLS; browsers silently
+// drop Secure cookies over plain HTTP connections.
+func setSessionCookie(w http.ResponseWriter, sessionID string, expiresAt time.Time, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "cnpg-ui-session",
 		Value:    sessionID,
 		Path:     "/",
 		Expires:  expiresAt,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 	})
 }
 
 // clearSessionCookie overwrites the cookie with an expired one.
-func clearSessionCookie(w http.ResponseWriter) {
+// secure must match the value used when setting the cookie.
+func clearSessionCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "cnpg-ui-session",
 		Value:    "",
@@ -160,7 +179,7 @@ func clearSessionCookie(w http.ResponseWriter) {
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 	})
 }

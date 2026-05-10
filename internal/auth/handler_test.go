@@ -49,7 +49,7 @@ func newTestService(t *testing.T, username, password string) auth.Service {
 
 func TestHandler_APILogin_ValidJSON(t *testing.T) {
 	svc := newTestService(t, "admin", "secret")
-	h := auth.NewHandler(svc)
+	h := auth.NewHandler(svc, false)
 
 	body := `{"username":"admin","password":"secret"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
@@ -91,7 +91,7 @@ func TestHandler_APILogin_ValidJSON(t *testing.T) {
 
 func TestHandler_APILogin_InvalidPassword_Returns401(t *testing.T) {
 	svc := newTestService(t, "admin", "secret")
-	h := auth.NewHandler(svc)
+	h := auth.NewHandler(svc, false)
 
 	body := `{"username":"admin","password":"wrong"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
@@ -106,7 +106,7 @@ func TestHandler_APILogin_InvalidPassword_Returns401(t *testing.T) {
 
 func TestHandler_APILogin_MalformedJSON_Returns400(t *testing.T) {
 	svc := newTestService(t, "admin", "secret")
-	h := auth.NewHandler(svc)
+	h := auth.NewHandler(svc, false)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login",
 		bytes.NewReader([]byte("not-json")))
@@ -123,7 +123,7 @@ func TestHandler_APILogin_MalformedJSON_Returns400(t *testing.T) {
 
 func TestHandler_UILogin_ValidForm(t *testing.T) {
 	svc := newTestService(t, "admin", "secret")
-	h := auth.NewHandler(svc)
+	h := auth.NewHandler(svc, false)
 
 	form := url.Values{"username": {"admin"}, "password": {"secret"}}
 	req := httptest.NewRequest(http.MethodPost, "/ui/login",
@@ -154,7 +154,7 @@ func TestHandler_UILogin_ValidForm(t *testing.T) {
 
 func TestHandler_UILogin_InvalidPassword_RedirectsWithError(t *testing.T) {
 	svc := newTestService(t, "admin", "secret")
-	h := auth.NewHandler(svc)
+	h := auth.NewHandler(svc, false)
 
 	form := url.Values{"username": {"admin"}, "password": {"wrong"}}
 	req := httptest.NewRequest(http.MethodPost, "/ui/login",
@@ -175,7 +175,7 @@ func TestHandler_UILogin_InvalidPassword_RedirectsWithError(t *testing.T) {
 
 func TestHandler_APILogout_InvalidatesSession(t *testing.T) {
 	svc := newTestService(t, "admin", "secret")
-	h := auth.NewHandler(svc)
+	h := auth.NewHandler(svc, false)
 
 	// First login to get a session.
 	body := `{"username":"admin","password":"secret"}`
@@ -201,7 +201,7 @@ func TestHandler_APILogout_InvalidatesSession(t *testing.T) {
 
 func TestHandler_UILogout_ClearsCookieAndRedirects(t *testing.T) {
 	svc := newTestService(t, "admin", "secret")
-	h := auth.NewHandler(svc)
+	h := auth.NewHandler(svc, false)
 
 	// Login first.
 	form := url.Values{"username": {"admin"}, "password": {"secret"}}
@@ -240,7 +240,7 @@ func TestHandler_UILogout_ClearsCookieAndRedirects(t *testing.T) {
 
 func TestHandler_ChangePassword_ValidOld(t *testing.T) {
 	svc := newTestService(t, "admin", "oldpass")
-	h := auth.NewHandler(svc)
+	h := auth.NewHandler(svc, false)
 
 	// Login to get a session.
 	loginBody := `{"username":"admin","password":"oldpass"}`
@@ -252,8 +252,8 @@ func TestHandler_ChangePassword_ValidOld(t *testing.T) {
 	var loginResp map[string]string
 	_ = json.NewDecoder(loginRR.Body).Decode(&loginResp)
 
-	// Change password.
-	cpBody := `{"old_password":"oldpass","new_password":"newpass"}`
+	// Change password — new password meets minimum 12-char requirement.
+	cpBody := `{"old_password":"oldpass","new_password":"newpassword1234"}`
 	cpReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
 	cpReq.Header.Set("Content-Type", "application/json")
 	cpReq.Header.Set("Authorization", "Bearer "+loginResp["token"])
@@ -271,9 +271,9 @@ func TestHandler_ChangePassword_ValidOld(t *testing.T) {
 
 func TestHandler_ChangePassword_WrongOld_Returns401(t *testing.T) {
 	svc := newTestService(t, "admin", "oldpass")
-	h := auth.NewHandler(svc)
+	h := auth.NewHandler(svc, false)
 
-	cpBody := `{"old_password":"wrongold","new_password":"newpass"}`
+	cpBody := `{"old_password":"wrongold","new_password":"newpass_long_enough"}`
 	cpReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
 	cpReq.Header.Set("Content-Type", "application/json")
 	ctx := context.WithValue(cpReq.Context(), auth.UsernameContextKey, "admin")
@@ -284,5 +284,95 @@ func TestHandler_ChangePassword_WrongOld_Returns401(t *testing.T) {
 
 	if cpRR.Code != http.StatusUnauthorized {
 		t.Errorf("change password status = %d, want 401", cpRR.Code)
+	}
+}
+
+// TestHandler_ChangePassword_TooShort_Returns422 verifies that a new password
+// shorter than 12 characters is rejected with 422 Unprocessable Entity.
+func TestHandler_ChangePassword_TooShort_Returns422(t *testing.T) {
+	svc := newTestService(t, "admin", "oldpass")
+	h := auth.NewHandler(svc, false)
+
+	cpBody := `{"old_password":"oldpass","new_password":"short"}`
+	cpReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
+	cpReq.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(cpReq.Context(), auth.UsernameContextKey, "admin")
+	cpReq = cpReq.WithContext(ctx)
+
+	cpRR := httptest.NewRecorder()
+	h.ChangePassword(cpRR, cpReq)
+
+	if cpRR.Code != http.StatusUnprocessableEntity {
+		t.Errorf("change password (too short) status = %d, want 422", cpRR.Code)
+	}
+}
+
+// TestHandler_ChangePassword_ExactMinLength_Succeeds verifies a 12-char password is accepted.
+func TestHandler_ChangePassword_ExactMinLength_Succeeds(t *testing.T) {
+	svc := newTestService(t, "admin", "oldpassword1")
+	h := auth.NewHandler(svc, false)
+
+	// Login first
+	loginBody := `{"username":"admin","password":"oldpassword1"}`
+	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(loginBody))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginRR := httptest.NewRecorder()
+	h.APILogin(loginRR, loginReq)
+
+	// Change to exactly 12-char password
+	cpBody := `{"old_password":"oldpassword1","new_password":"newpassword1"}`
+	cpReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
+	cpReq.Header.Set("Content-Type", "application/json")
+	ctx := context.WithValue(cpReq.Context(), auth.UsernameContextKey, "admin")
+	cpReq = cpReq.WithContext(ctx)
+
+	cpRR := httptest.NewRecorder()
+	h.ChangePassword(cpRR, cpReq)
+
+	if cpRR.Code != http.StatusOK {
+		t.Errorf("change password (exact min length) status = %d, want 200; body: %s", cpRR.Code, cpRR.Body.String())
+	}
+}
+
+// TestHandler_SecureCookie_HTTP verifies that Secure is false when secureCookie=false.
+func TestHandler_SecureCookie_HTTP(t *testing.T) {
+	svc := newTestService(t, "admin", "secret")
+	h := auth.NewHandler(svc, false) // HTTP mode — no TLS
+
+	body := `{"username":"admin","password":"secret"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.APILogin(rr, req)
+
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "cnpg-ui-session" && c.Secure {
+			t.Error("Secure flag must be false when server is not using TLS")
+		}
+	}
+}
+
+// TestHandler_SecureCookie_TLS verifies that Secure is true when secureCookie=true.
+func TestHandler_SecureCookie_TLS(t *testing.T) {
+	svc := newTestService(t, "admin", "secret")
+	h := auth.NewHandler(svc, true) // TLS mode
+
+	body := `{"username":"admin","password":"secret"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	h.APILogin(rr, req)
+
+	found := false
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "cnpg-ui-session" {
+			found = true
+			if !c.Secure {
+				t.Error("Secure flag must be true when server is using TLS")
+			}
+		}
+	}
+	if !found {
+		t.Error("cnpg-ui-session cookie not set")
 	}
 }
