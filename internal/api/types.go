@@ -146,6 +146,13 @@ type CreateScheduledBackupRequest struct {
 	Immediate bool   `json:"immediate,omitempty"`
 }
 
+// UpdateScheduledBackupRequest is the body for PUT /api/v1/clusters/{name}/scheduled-backups/{sbName}.
+// Only non-empty/non-zero fields are applied.
+type UpdateScheduledBackupRequest struct {
+	Schedule  string `json:"schedule,omitempty"`
+	Suspended bool   `json:"suspended,omitempty"`
+}
+
 // ── Pooler ────────────────────────────────────────────────────────────────────
 
 // PoolerSummary represents a Pooler CR (read-only).

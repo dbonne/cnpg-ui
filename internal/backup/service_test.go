@@ -237,6 +237,64 @@ func TestCreateScheduledBackup_CreatesCR(t *testing.T) {
 	}
 }
 
+// TestUpdateScheduledBackup_UpdatesSchedule verifies UpdateScheduledBackup patches the schedule.
+func TestUpdateScheduledBackup_UpdatesSchedule(t *testing.T) {
+	t.Parallel()
+
+	scheme := newScheme()
+	sb := fakeScheduledBackup("daily", "default", "prod", "0 2 * * *")
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(sb).
+		Build()
+
+	svc := backup.NewService(fakeClient, "default")
+	result, err := svc.UpdateScheduledBackup(context.Background(), "prod", "daily",
+		api.UpdateScheduledBackupRequest{Schedule: "0 4 * * *"})
+	if err != nil {
+		t.Fatalf("UpdateScheduledBackup: %v", err)
+	}
+
+	if result.Schedule != "0 4 * * *" {
+		t.Errorf("Schedule: got %q, want %q", result.Schedule, "0 4 * * *")
+	}
+}
+
+// TestUpdateScheduledBackup_NotFound verifies error for non-existent backup.
+func TestUpdateScheduledBackup_NotFound(t *testing.T) {
+	t.Parallel()
+
+	fakeClient := fake.NewClientBuilder().WithScheme(newScheme()).Build()
+	svc := backup.NewService(fakeClient, "default")
+
+	_, err := svc.UpdateScheduledBackup(context.Background(), "prod", "ghost",
+		api.UpdateScheduledBackupRequest{Schedule: "0 4 * * *"})
+	if err == nil {
+		t.Fatal("expected error for non-existent scheduled backup, got nil")
+	}
+}
+
+// TestUpdateScheduledBackup_WrongCluster verifies ownership check on update.
+func TestUpdateScheduledBackup_WrongCluster(t *testing.T) {
+	t.Parallel()
+
+	scheme := newScheme()
+	sb := fakeScheduledBackup("daily", "default", "other-cluster", "0 2 * * *")
+
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(sb).
+		Build()
+
+	svc := backup.NewService(fakeClient, "default")
+	_, err := svc.UpdateScheduledBackup(context.Background(), "prod", "daily",
+		api.UpdateScheduledBackupRequest{Schedule: "0 4 * * *"})
+	if err == nil {
+		t.Fatal("expected error when updating backup belonging to different cluster, got nil")
+	}
+}
+
 // TestDeleteScheduledBackup_Existing verifies deletion removes the CR.
 func TestDeleteScheduledBackup_Existing(t *testing.T) {
 	t.Parallel()

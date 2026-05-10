@@ -20,6 +20,7 @@ type Service interface {
 	ListScheduledBackups(ctx context.Context, clusterName string) ([]api.ScheduledBackupSummary, error)
 	GetScheduledBackup(ctx context.Context, clusterName, name string) (*api.ScheduledBackupSummary, error)
 	CreateScheduledBackup(ctx context.Context, clusterName string, req api.CreateScheduledBackupRequest) (*api.ScheduledBackupSummary, error)
+	UpdateScheduledBackup(ctx context.Context, clusterName, name string, req api.UpdateScheduledBackupRequest) (*api.ScheduledBackupSummary, error)
 	DeleteScheduledBackup(ctx context.Context, clusterName, name string) error
 }
 
@@ -153,6 +154,37 @@ func (s *service) CreateScheduledBackup(ctx context.Context, clusterName string,
 	}
 
 	summary := toScheduledSummary(sb)
+	return &summary, nil
+}
+
+// UpdateScheduledBackup fetches the named ScheduledBackup, patches its schedule
+// and/or suspend fields from req, and writes the update back to the API server.
+func (s *service) UpdateScheduledBackup(ctx context.Context, clusterName, name string, req api.UpdateScheduledBackupRequest) (*api.ScheduledBackupSummary, error) {
+	var sb cnpgv1.ScheduledBackup
+	key := client.ObjectKey{Namespace: s.namespace, Name: name}
+	if err := s.client.Get(ctx, key, &sb); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, fmt.Errorf("scheduled backup %q not found", name)
+		}
+		return nil, fmt.Errorf("get scheduled backup %q: %w", name, err)
+	}
+	if sb.Spec.Cluster.Name != clusterName {
+		return nil, fmt.Errorf("scheduled backup %q not found", name)
+	}
+
+	patch := client.MergeFrom(sb.DeepCopy())
+
+	if req.Schedule != "" {
+		sb.Spec.Schedule = req.Schedule
+	}
+	suspended := req.Suspended
+	sb.Spec.Suspend = &suspended
+
+	if err := s.client.Patch(ctx, &sb, patch); err != nil {
+		return nil, fmt.Errorf("update scheduled backup %q: %w", name, err)
+	}
+
+	summary := toScheduledSummary(&sb)
 	return &summary, nil
 }
 

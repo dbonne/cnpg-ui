@@ -17,17 +17,19 @@ import (
 
 // stubService is a test double for backup.Service.
 type stubService struct {
-	listBackupsResult           []api.BackupSummary
-	listBackupsErr              error
-	triggerBackupResult         *api.BackupSummary
-	triggerBackupErr            error
-	listScheduledBackupsResult  []api.ScheduledBackupSummary
-	listScheduledBackupsErr     error
-	getScheduledBackupResult    *api.ScheduledBackupSummary
-	getScheduledBackupErr       error
-	createScheduledBackupResult *api.ScheduledBackupSummary
-	createScheduledBackupErr    error
-	deleteScheduledBackupErr    error
+	listBackupsResult            []api.BackupSummary
+	listBackupsErr               error
+	triggerBackupResult          *api.BackupSummary
+	triggerBackupErr             error
+	listScheduledBackupsResult   []api.ScheduledBackupSummary
+	listScheduledBackupsErr      error
+	getScheduledBackupResult     *api.ScheduledBackupSummary
+	getScheduledBackupErr        error
+	createScheduledBackupResult  *api.ScheduledBackupSummary
+	createScheduledBackupErr     error
+	updateScheduledBackupResult  *api.ScheduledBackupSummary
+	updateScheduledBackupErr     error
+	deleteScheduledBackupErr     error
 }
 
 func (s *stubService) ListBackups(_ context.Context, _ string) ([]api.BackupSummary, error) {
@@ -44,6 +46,9 @@ func (s *stubService) GetScheduledBackup(_ context.Context, _, _ string) (*api.S
 }
 func (s *stubService) CreateScheduledBackup(_ context.Context, _ string, _ api.CreateScheduledBackupRequest) (*api.ScheduledBackupSummary, error) {
 	return s.createScheduledBackupResult, s.createScheduledBackupErr
+}
+func (s *stubService) UpdateScheduledBackup(_ context.Context, _, _ string, _ api.UpdateScheduledBackupRequest) (*api.ScheduledBackupSummary, error) {
+	return s.updateScheduledBackupResult, s.updateScheduledBackupErr
 }
 func (s *stubService) DeleteScheduledBackup(_ context.Context, _, _ string) error {
 	return s.deleteScheduledBackupErr
@@ -199,6 +204,54 @@ func TestCreateScheduledBackup_Handler_OK(t *testing.T) {
 	}
 	if result.Name != "daily" {
 		t.Errorf("Name: got %q, want daily", result.Name)
+	}
+}
+
+// TestUpdateScheduledBackup_Handler_OK verifies UpdateScheduledBackup returns 200.
+func TestUpdateScheduledBackup_Handler_OK(t *testing.T) {
+	t.Parallel()
+
+	svc := &stubService{
+		updateScheduledBackupResult: &api.ScheduledBackupSummary{
+			Name: "daily", ClusterName: "prod", Schedule: "0 3 * * *",
+		},
+	}
+	h := backup.NewHandler(svc)
+
+	body, _ := json.Marshal(api.UpdateScheduledBackupRequest{Schedule: "0 3 * * *"})
+	w := httptest.NewRecorder()
+	r := routedRequest(http.MethodPut, "/api/v1/clusters/prod/scheduled-backups/daily",
+		body, map[string]string{"name": "prod", "id": "daily"})
+	h.UpdateScheduledBackup(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status: got %d, want %d", w.Code, http.StatusOK)
+	}
+
+	var result api.ScheduledBackupSummary
+	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if result.Schedule != "0 3 * * *" {
+		t.Errorf("Schedule: got %q, want 0 3 * * *", result.Schedule)
+	}
+}
+
+// TestUpdateScheduledBackup_Handler_NotFound verifies 404 for missing scheduled backup.
+func TestUpdateScheduledBackup_Handler_NotFound(t *testing.T) {
+	t.Parallel()
+
+	svc := &stubService{updateScheduledBackupErr: fmt.Errorf("scheduled backup \"ghost\" not found")}
+	h := backup.NewHandler(svc)
+
+	body, _ := json.Marshal(api.UpdateScheduledBackupRequest{Schedule: "0 3 * * *"})
+	w := httptest.NewRecorder()
+	r := routedRequest(http.MethodPut, "/api/v1/clusters/prod/scheduled-backups/ghost",
+		body, map[string]string{"name": "prod", "id": "ghost"})
+	h.UpdateScheduledBackup(w, r)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status: got %d, want %d", w.Code, http.StatusNotFound)
 	}
 }
 

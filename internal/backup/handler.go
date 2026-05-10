@@ -98,6 +98,29 @@ func (h *Handler) CreateScheduledBackup(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusCreated, result)
 }
 
+// UpdateScheduledBackup handles PUT /api/v1/clusters/{name}/scheduled-backups/{id}.
+func (h *Handler) UpdateScheduledBackup(w http.ResponseWriter, r *http.Request) {
+	clusterName := chi.URLParam(r, "name")
+	id := chi.URLParam(r, "id")
+
+	var req api.UpdateScheduledBackupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, apierr.CodeValidation, "invalid request body: "+err.Error())
+		return
+	}
+
+	result, err := h.svc.UpdateScheduledBackup(r.Context(), clusterName, id, req)
+	if err != nil {
+		if isNotFound(err) {
+			writeError(w, http.StatusNotFound, apierr.CodeNotFound, err.Error())
+			return
+		}
+		writeError(w, http.StatusInternalServerError, apierr.CodeInternal, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
 // DeleteScheduledBackup handles DELETE /api/v1/clusters/{name}/scheduled-backups/{id}.
 func (h *Handler) DeleteScheduledBackup(w http.ResponseWriter, r *http.Request) {
 	clusterName := chi.URLParam(r, "name")

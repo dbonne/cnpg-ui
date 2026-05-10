@@ -193,6 +193,7 @@ func run() error {
 		r.Get("/api/v1/clusters/{name}/scheduled-backups", requireService(backupSvc, backupHandler.ListScheduledBackups))
 		r.Post("/api/v1/clusters/{name}/scheduled-backups", requireService(backupSvc, backupHandler.CreateScheduledBackup))
 		r.Get("/api/v1/clusters/{name}/scheduled-backups/{id}", requireService(backupSvc, backupHandler.GetScheduledBackup))
+		r.Put("/api/v1/clusters/{name}/scheduled-backups/{id}", requireService(backupSvc, backupHandler.UpdateScheduledBackup))
 		r.Delete("/api/v1/clusters/{name}/scheduled-backups/{id}", requireService(backupSvc, backupHandler.DeleteScheduledBackup))
 
 		// Poolers (read-only)
