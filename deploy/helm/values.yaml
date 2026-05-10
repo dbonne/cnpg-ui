@@ -1,0 +1,39 @@
+# Default values for cnpg-ui Helm chart.
+
+# nameOverride and fullnameOverride allow customizing the release name.
+nameOverride: ""
+fullnameOverride: ""
+
+# auth configures the authentication layer.
+auth:
+  # adminUsername is the username stored in the credentials Secret.
+  # Defaults to "admin". Change this before first deploy if desired.
+  adminUsername: admin
+
+  # credentialsSecretName is the name of the K8s Secret holding bcrypt-hashed
+  # credentials. If the Secret already exists in the namespace, Helm will NOT
+  # overwrite it (password changes made at runtime are preserved).
+  credentialsSecretName: cnpg-ui-credentials
+
+# image configures the CNPG UI container image.
+image:
+  repository: ghcr.io/dbonne/cnpg-ui
+  tag: ""  # Defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+# replicaCount is the number of UI server replicas.
+# Note: the in-memory session store is single-replica only in v1.
+replicaCount: 1
+
+# service configures the Kubernetes Service for the UI.
+service:
+  type: ClusterIP
+  port: 8080
+
+# env holds additional environment variables for the UI container.
+# See README for the full list of CNPG_UI_* variables.
+env: {}
+# Examples:
+#   CNPG_UI_NAMESPACE: "cnpg-system"
+#   CNPG_UI_SESSION_TTL: "8h"
+#   CNPG_UI_LOG_LEVEL: "info"

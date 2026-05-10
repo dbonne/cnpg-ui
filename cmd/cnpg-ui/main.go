@@ -15,10 +15,12 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chimw "github.com/go-chi/chi/v5/middleware"
 
+	"github.com/dbonne/cnpg-ui/internal/auth"
 	"github.com/dbonne/cnpg-ui/internal/config"
 	"github.com/dbonne/cnpg-ui/internal/k8s"
+	"github.com/dbonne/cnpg-ui/internal/middleware"
 )
 
 func main() {
@@ -38,11 +40,8 @@ func run() error {
 	slog.SetDefault(logger)
 
 	// ── K8s client layer ──────────────────────────────────────────────────────
-	// Build the runtime scheme with all CNPG CRD types registered.
 	scheme := k8s.NewScheme()
 
-	// Attempt to create a real K8s client (in-cluster config with kubeconfig fallback).
-	// In dev environments without a running cluster this will log a warning and continue.
 	k8sClient, err := k8s.NewClient(scheme)
 	if err != nil {
 		logger.Warn("K8s client unavailable — running without cluster access", "err", err)
@@ -52,25 +51,68 @@ func run() error {
 		clusterReader := k8s.NewClusterReader(k8sClient)
 		_ = clusterReader // wired in PR 4 when service layer is added
 
-		// Informer manager — syncs CRD caches in background.
-		// Production wiring: pass rest.Config separately (done when cfg is threaded through).
-		// For now, no-op is fine (no real cluster in dev).
 		informerMgr := k8s.NewInformerManager(nil, scheme)
 		go informerMgr.Start(context.Background())
 		_ = informerMgr.WaitForSync
 	}
 	// ─────────────────────────────────────────────────────────────────────────
 
+	// ── Auth layer ────────────────────────────────────────────────────────────
+	sessionStore := auth.NewStore(cfg.SessionTTL)
+
+	var authSvc auth.Service
+	if k8sClient != nil {
+		authSvc = auth.NewService(cfg, k8sClient, sessionStore)
+	}
+
+	var sessionValidator middleware.SessionValidator
+	if authSvc != nil {
+		sessionValidator = auth.NewSessionValidatorAdapter(authSvc)
+	} else {
+		// No K8s client — use a no-op validator that rejects all sessions.
+		// Auth routes will return 401/redirect. Useful for healthz-only dev mode.
+		sessionValidator = &rejectAllValidator{}
+	}
+
+	authHandler := auth.NewHandler(authSvc)
+	// ─────────────────────────────────────────────────────────────────────────
+
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Recoverer)
+	r.Use(chimw.RequestID)
+	r.Use(chimw.RealIP)
+	r.Use(chimw.Recoverer)
 
 	// Health check — no auth required.
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, "ok")
 	})
+
+	// ── Auth endpoints (no session required) ──────────────────────────────────
+	r.Post("/api/v1/auth/login", authHandler.APILogin)
+	r.Post("/ui/login", authHandler.UILogin)
+
+	// ── Protected API routes ──────────────────────────────────────────────────
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.APIAuth(sessionValidator))
+		r.Post("/api/v1/auth/logout", authHandler.APILogout)
+		r.Post("/api/v1/auth/password", authHandler.ChangePassword)
+		// PR 4: cluster / backup / pooler API routes added here
+	})
+
+	// ── Protected UI routes ───────────────────────────────────────────────────
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.UIAuth(sessionValidator))
+		r.Post("/ui/logout", authHandler.UILogout)
+		// PR 4: cluster / backup / pooler UI routes added here
+	})
+
+	// ── Login page (no auth) ─────────────────────────────────────────────────
+	r.Get("/ui/login", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, loginPageHTML)
+	})
+	// ─────────────────────────────────────────────────────────────────────────
 
 	srv := &http.Server{
 		Addr:         cfg.ServerAddr,
@@ -80,7 +122,6 @@ func run() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Graceful shutdown on SIGINT / SIGTERM.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -108,6 +149,14 @@ func run() error {
 	return nil
 }
 
+// rejectAllValidator is a SessionValidator that rejects every session.
+// It is used when no K8s client is available (dev / no-cluster mode).
+type rejectAllValidator struct{}
+
+func (r *rejectAllValidator) ValidateSession(_ string) (string, error) {
+	return "", middleware.ErrUnauthorized
+}
+
 // newLogger constructs a structured slog.Logger at the requested level.
 func newLogger(level string) *slog.Logger {
 	var l slog.Level
@@ -123,3 +172,18 @@ func newLogger(level string) *slog.Logger {
 	}
 	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: l}))
 }
+
+// loginPageHTML is a minimal login page served at GET /ui/login.
+// The full template will be replaced in PR 5 (UI layer).
+const loginPageHTML = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>CNPG UI — Login</title></head>
+<body>
+<h1>CNPG Web UI</h1>
+<form method="POST" action="/ui/login">
+  <label>Username: <input type="text" name="username" required autofocus></label><br>
+  <label>Password: <input type="password" name="password" required></label><br>
+  <button type="submit">Login</button>
+</form>
+</body>
+</html>`

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: cnpg-ui
+description: A Helm chart for the CNPG Web UI
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - cloudnative-pg
+  - postgresql
+  - kubernetes
+home: https://github.com/dbonne/cnpg-ui
+sources:
+  - https://github.com/dbonne/cnpg-ui
+maintainers:
+  - name: dbonne
