@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	cnpgv1 "github.com/cloudnative-pg/api/pkg/api/v1"
+	toolscache "k8s.io/client-go/tools/cache"
 
 	"github.com/dbonne/cnpg-ui/internal/k8s"
 )
@@ -35,6 +36,17 @@ type Watcher struct {
 // NewWatcher creates a Watcher that publishes events to the given Hub.
 func NewWatcher(h *Hub) *Watcher {
 	return &Watcher{hub: h}
+}
+
+// AsResourceEventHandler returns a toolscache.ResourceEventHandler that delegates
+// to this watcher's OnAdd/OnUpdate/OnDelete methods. Use this to register the
+// watcher with the informer cache via InformerManager.AddClusterEventHandler.
+func (w *Watcher) AsResourceEventHandler() toolscache.ResourceEventHandler {
+	return toolscache.ResourceEventHandlerFuncs{
+		AddFunc:    func(obj interface{}) { w.OnAdd(obj) },
+		UpdateFunc: func(oldObj, newObj interface{}) { w.OnUpdate(oldObj, newObj) },
+		DeleteFunc: func(obj interface{}) { w.OnDelete(obj) },
+	}
 }
 
 // OnAdd is called when a new Cluster CR is observed by the informer.

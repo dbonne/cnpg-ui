@@ -82,20 +82,30 @@ func NewScheme() *runtime.Scheme {
 //
 // Returns an error if neither configuration source is available.
 func NewClient(scheme *runtime.Scheme) (client.Client, error) {
+	c, _, err := NewClientWithConfig(scheme)
+	return c, err
+}
+
+// NewClientWithConfig creates a controller-runtime client and returns the
+// REST config alongside it so callers can build additional clients
+// (e.g. the informer cache or the typed kubernetes.Interface for log streaming).
+//
+// Returns an error if neither in-cluster config nor kubeconfig is available.
+func NewClientWithConfig(scheme *runtime.Scheme) (client.Client, *rest.Config, error) {
 	cfg, err := rest.InClusterConfig()
 	if err != nil {
 		// Not running inside a cluster — try kubeconfig.
 		cfg, err = loadKubeconfig()
 		if err != nil {
-			return nil, fmt.Errorf("no valid k8s config found (tried in-cluster and kubeconfig): %w", err)
+			return nil, nil, fmt.Errorf("no valid k8s config found (tried in-cluster and kubeconfig): %w", err)
 		}
 	}
 
 	c, err := client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
-		return nil, fmt.Errorf("create controller-runtime client: %w", err)
+		return nil, nil, fmt.Errorf("create controller-runtime client: %w", err)
 	}
-	return c, nil
+	return c, cfg, nil
 }
 
 // loadKubeconfig loads a REST config from ~/.kube/config.

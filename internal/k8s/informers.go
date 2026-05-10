@@ -2,9 +2,12 @@ package k8s
 
 import (
 	"context"
+	"log/slog"
 
+	cnpgv1 "github.com/cloudnative-pg/api/pkg/api/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	toolscache "k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -23,6 +26,11 @@ type InformerManager interface {
 	// WaitForSync waits until the cache has received a full list response from
 	// the API server. Returns true if synced, false if ctx was cancelled first.
 	WaitForSync(ctx context.Context) bool
+
+	// AddClusterEventHandler registers a ResourceEventHandler for CNPG Cluster CRs.
+	// Events (add, update, delete) are delivered to the handler after the cache starts.
+	// This is a no-op on the noopInformerManager (dev/test mode).
+	AddClusterEventHandler(ctx context.Context, handler toolscache.ResourceEventHandler) error
 }
 
 // realInformerManager implements InformerManager using controller-runtime cache.
@@ -35,13 +43,16 @@ type noopInformerManager struct{}
 
 func (n *noopInformerManager) Start(_ context.Context)            {}
 func (n *noopInformerManager) WaitForSync(_ context.Context) bool { return false }
+func (n *noopInformerManager) AddClusterEventHandler(_ context.Context, _ toolscache.ResourceEventHandler) error {
+	return nil
+}
 
 // NewInformerManager creates an InformerManager.
 //
-//   - In production: call with a real *rest.Config (from NewClient or rest.InClusterConfig).
+//   - In production: call with a real *rest.Config (from NewClientWithConfig).
 //     The manager will create a controller-runtime cache that watches all CRD types.
-//   - In tests: call with a nil cfg. A no-op manager is returned so tests compile
-//     and run without a real API server.
+//   - In tests / dev: call with a nil cfg. A no-op manager is returned so tests
+//     compile and run without a real API server.
 //
 // The scheme must contain all types you intend to watch (use NewScheme()).
 func NewInformerManager(cfg *rest.Config, scheme *runtime.Scheme) InformerManager {
@@ -52,6 +63,7 @@ func NewInformerManager(cfg *rest.Config, scheme *runtime.Scheme) InformerManage
 	ca, err := cache.New(cfg, cache.Options{Scheme: scheme})
 	if err != nil {
 		// If we can't create the cache, fall back to no-op rather than panic.
+		slog.Error("informer: failed to create cache, falling back to noop", "err", err)
 		return &noopInformerManager{}
 	}
 
@@ -81,4 +93,17 @@ func (m *realInformerManager) Start(ctx context.Context) {
 // WaitForSync waits for the cache to finish the initial list from the API server.
 func (m *realInformerManager) WaitForSync(ctx context.Context) bool {
 	return m.cache.WaitForCacheSync(ctx)
+}
+
+// AddClusterEventHandler registers an event handler for CNPG Cluster CRs.
+// The handler receives OnAdd/OnUpdate/OnDelete callbacks from the informer.
+// Must be called before Start — event handlers registered after Start are not guaranteed
+// to receive all events.
+func (m *realInformerManager) AddClusterEventHandler(ctx context.Context, handler toolscache.ResourceEventHandler) error {
+	informer, err := m.cache.GetInformer(ctx, &cnpgv1.Cluster{})
+	if err != nil {
+		return err
+	}
+	_, err = informer.AddEventHandler(handler)
+	return err
 }

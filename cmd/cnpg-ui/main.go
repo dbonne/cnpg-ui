@@ -17,6 +17,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/dbonne/cnpg-ui/internal/auth"
 	"github.com/dbonne/cnpg-ui/internal/backup"
@@ -25,6 +26,7 @@ import (
 	"github.com/dbonne/cnpg-ui/internal/hub"
 	"github.com/dbonne/cnpg-ui/internal/k8s"
 	"github.com/dbonne/cnpg-ui/internal/middleware"
+	openapipkg "github.com/dbonne/cnpg-ui/internal/openapi"
 	"github.com/dbonne/cnpg-ui/internal/pooler"
 )
 
@@ -47,7 +49,7 @@ func run() error {
 	// ── K8s client layer ──────────────────────────────────────────────────────
 	scheme := k8s.NewScheme()
 
-	k8sClient, err := k8s.NewClient(scheme)
+	k8sClient, restCfg, err := k8s.NewClientWithConfig(scheme)
 	if err != nil {
 		logger.Warn("K8s client unavailable — running without cluster access", "err", err)
 	}
@@ -61,18 +63,26 @@ func run() error {
 	go sseHub.Run(hubCtx)
 
 	if k8sClient != nil {
-		informerMgr := k8s.NewInformerManager(nil, scheme)
-		go informerMgr.Start(context.Background())
-		_ = informerMgr.WaitForSync
+		// Pass the real REST config so the informer cache can connect to the API server.
+		// When restCfg is nil (should not happen here since k8sClient != nil implies
+		// a successful NewClientWithConfig call), NewInformerManager falls back to noop.
+		informerMgr := k8s.NewInformerManager(restCfg, scheme)
 
-		// The watcher publishes cluster events to the hub.
-		// In a full implementation this would be wired into the informer's
-		// event handlers. For now the watcher is ready but the informer hook
-		// integration is deferred to when controller-runtime exposes a stable
-		// add-event-handler API in this module.
-		_ = hub.NewWatcher(sseHub)
+		// Wire the watcher event handlers BEFORE starting the informer so we
+		// receive the initial list events.
+		watcher := hub.NewWatcher(sseHub)
+		if err := informerMgr.AddClusterEventHandler(context.Background(), watcher.AsResourceEventHandler()); err != nil {
+			logger.Warn("failed to register cluster event handler", "err", err)
+		}
+
+		go informerMgr.Start(context.Background())
 	}
 	// ─────────────────────────────────────────────────────────────────────────
+
+	// TLS is enabled when both cert and key paths are configured.
+	// This flag is used to select ListenAndServeTLS vs ListenAndServe and to
+	// set the Secure flag on session cookies.
+	tlsEnabled := cfg.TLSCertPath != "" && cfg.TLSKeyPath != ""
 
 	// ── Auth layer ────────────────────────────────────────────────────────────
 	sessionStore := auth.NewStore(cfg.SessionTTL)
@@ -89,7 +99,7 @@ func run() error {
 		sessionValidator = &rejectAllValidator{}
 	}
 
-	authHandler := auth.NewHandler(authSvc)
+	authHandler := auth.NewHandler(authSvc, tlsEnabled)
 	// ─────────────────────────────────────────────────────────────────────────
 
 	// ── Domain services ───────────────────────────────────────────────────────
@@ -117,7 +127,15 @@ func run() error {
 
 	var logSvc cluster.LogService
 	if k8sClient != nil {
-		logSvc = cluster.NewLogService(k8sClient, ns)
+		// Build a typed kubernetes.Interface from the same REST config used for the
+		// controller-runtime client. This is required for pod log streaming because
+		// controller-runtime client.Client does not support the logs API.
+		typedClient, typedErr := kubernetes.NewForConfig(restCfg)
+		if typedErr != nil {
+			logger.Warn("failed to build typed K8s client for log streaming", "err", typedErr)
+			typedClient = nil
+		}
+		logSvc = cluster.NewLogService(k8sClient, typedClient, ns)
 	}
 	logHandler := cluster.NewLogHandler(logSvc)
 	// ─────────────────────────────────────────────────────────────────────────
@@ -134,7 +152,12 @@ func run() error {
 	})
 
 	// OpenAPI spec — no auth required.
-	r.Get("/api/v1/openapi.json", serveOpenAPISpec)
+	// /api/v1/openapi.yaml serves the embedded spec as YAML.
+	// /api/v1/openapi.json redirects to the YAML endpoint for convenience.
+	r.Get("/api/v1/openapi.yaml", serveOpenAPISpec)
+	r.Get("/api/v1/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/api/v1/openapi.yaml", http.StatusMovedPermanently)
+	})
 
 	// ── Auth endpoints (no session required) ──────────────────────────────────
 	r.Post("/api/v1/auth/login", authHandler.APILogin)
@@ -209,9 +232,16 @@ func run() error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		logger.Info("server starting", "addr", cfg.ServerAddr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
+		if tlsEnabled {
+			logger.Info("server starting (TLS)", "addr", cfg.ServerAddr)
+			if err := srv.ListenAndServeTLS(cfg.TLSCertPath, cfg.TLSKeyPath); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCh <- err
+			}
+		} else {
+			logger.Info("server starting", "addr", cfg.ServerAddr)
+			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCh <- err
+			}
 		}
 		close(errCh)
 	}()
@@ -250,19 +280,13 @@ func requireService(svc interface{}, h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// serveOpenAPISpec serves the OpenAPI specification as JSON.
-// The YAML spec is embedded at build time from api/openapi.yaml.
+// serveOpenAPISpec serves the embedded OpenAPI specification as YAML.
+// The spec is embedded at build time from internal/openapi/openapi.yaml
+// (which mirrors api/openapi.yaml in the repository root).
 func serveOpenAPISpec(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	// The spec is served as a simple redirect message in this phase.
-	// In PR 7, the openapi.yaml will be embedded with //go:embed and
-	// converted to JSON. For now, we return the spec location.
+	w.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"spec": "/api/v1/openapi.json",
-		"yaml": "api/openapi.yaml",
-		"note": "Full OpenAPI spec available in api/openapi.yaml; JSON conversion added in PR7",
-	})
+	_, _ = w.Write(openapipkg.SpecYAML)
 }
 
 // rejectAllValidator is a SessionValidator that rejects every session.
