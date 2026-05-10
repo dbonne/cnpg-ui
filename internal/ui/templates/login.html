@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CNPG Web UI — Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8f9fa; }
+    .login-card { background: #fff; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 2.5rem 2rem; width: 100%; max-width: 380px; }
+    .login-card h1 { font-size: 1.4rem; font-weight: 700; color: #1a1a2e; margin-bottom: 0.25rem; text-align: center; }
+    .login-card .subtitle { text-align: center; font-size: 0.85rem; color: #6b7280; margin-bottom: 2rem; }
+    label { display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.3rem; }
+    input[type="text"], input[type="password"] { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.9rem; color: #111827; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+    input[type="text"]:focus, input[type="password"]:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .field { margin-bottom: 1.2rem; }
+    .btn-login { width: 100%; padding: 0.65rem; border: none; border-radius: 4px; background: #1a1a2e; color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; margin-top: 0.5rem; transition: background 0.15s; }
+    .btn-login:hover { background: #16213e; }
+    .error-box { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; border-radius: 4px; padding: 0.6rem 0.9rem; font-size: 0.875rem; margin-bottom: 1.2rem; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <h1>⎈ CNPG Web UI</h1>
+    <p class="subtitle">CloudNativePG Management Interface</p>
+
+    {{if .Error}}
+    <div class="error-box" role="alert">{{.Error}}</div>
+    {{end}}
+
+    <form method="POST" action="/ui/login">
+      <div class="field">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required autofocus autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn-login">Sign in</button>
+    </form>
+  </div>
+</body>
+</html>

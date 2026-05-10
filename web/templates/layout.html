@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" x-data="{ sidebarOpen: true }">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{block "title" .}}CNPG Web UI{{end}}</title>
+
+  <!-- HTMX 2.x -->
+  <script src="https://unpkg.com/htmx.org@2.0.4" crossorigin="anonymous"></script>
+  <!-- Alpine.js for minimal client-side state (dropdowns, modals) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; min-height: 100vh; background: #f8f9fa; color: #212529; }
+    header { background: #1a1a2e; color: #fff; padding: 0.75rem 1.5rem; display: flex; align-items: center; gap: 1rem; }
+    header h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: 0.02em; }
+    .layout { display: flex; flex: 1; }
+    nav.sidebar { width: 220px; background: #16213e; color: #cdd6f4; padding: 1rem 0; flex-shrink: 0; }
+    nav.sidebar a { display: block; padding: 0.6rem 1.5rem; color: #cdd6f4; text-decoration: none; font-size: 0.9rem; transition: background 0.15s; }
+    nav.sidebar a:hover, nav.sidebar a.active { background: #0f3460; color: #fff; }
+    nav.sidebar .nav-section { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #6c7086; padding: 1rem 1.5rem 0.25rem; }
+    main.content { flex: 1; padding: 1.5rem; overflow: auto; }
+
+    /* Flash messages */
+    .flash { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.9rem; }
+    .flash-error { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .flash-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+    .flash-info { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+
+    /* Status badges */
+    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .badge-green { background: #d1fae5; color: #065f46; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-gray { background: #f3f4f6; color: #374151; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    th { background: #f1f5f9; text-align: left; padding: 0.75rem 1rem; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+
+    /* Buttons */
+    .btn { display: inline-block; padding: 0.5rem 1rem; border-radius: 4px; font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; text-decoration: none; transition: background 0.15s; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
+
+    /* Connection status indicator */
+    footer { background: #1a1a2e; color: #9ca3af; font-size: 0.75rem; padding: 0.5rem 1.5rem; display: flex; align-items: center; gap: 0.5rem; }
+    .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block; }
+    .conn-dot.disconnected { background: #ef4444; }
+  </style>
+</head>
+<body hx-ext="sse">
+
+<header>
+  <h1>⎈ CNPG Web UI</h1>
+  {{if .Username}}
+  <span style="margin-left:auto; font-size:0.85rem; color:#94a3b8;">{{.Username}}</span>
+  <form method="POST" action="/ui/logout" style="margin:0">
+    <button type="submit" class="btn btn-sm" style="background:#374151; color:#fff;">Logout</button>
+  </form>
+  {{end}}
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <span class="nav-section">Workloads</span>
+    <a href="/ui/clusters" {{if eq .ActiveNav "clusters"}}class="active"{{end}}>Clusters</a>
+    <a href="/ui/backups" {{if eq .ActiveNav "backups"}}class="active"{{end}}>Backups</a>
+    <a href="/ui/poolers" {{if eq .ActiveNav "poolers"}}class="active"{{end}}>Poolers</a>
+    <span class="nav-section">Settings</span>
+    <a href="/ui/config" {{if eq .ActiveNav "config"}}class="active"{{end}}>Config</a>
+  </nav>
+
+  <main class="content">
+    {{if .Flash}}
+    <div class="flash flash-{{.Flash.Type}}">{{.Flash.Message}}</div>
+    {{end}}
+    {{block "content" .}}{{end}}
+  </main>
+</div>
+
+<footer
+  hx-ext="sse"
+  sse-connect="/api/v1/events/clusters"
+  x-data="{ connected: false }"
+  @sse-open.window="connected = true"
+  @sse-error.window="connected = false">
+  <span class="conn-dot" :class="connected ? '' : 'disconnected'"></span>
+  <span x-text="connected ? 'Connected' : 'Disconnected'">Connecting…</span>
+</footer>
+
+</body>
+</html>
