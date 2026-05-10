@@ -1,0 +1,23 @@
+CNPG Web UI has been installed.
+
+{{- if .Values.__generatedPassword }}
+
+⚠️  INITIAL ADMIN PASSWORD (shown once — not stored in the cluster):
+
+    Username: {{ .Values.auth.adminUsername | default "admin" }}
+    Password: {{ .Values.__generatedPassword }}
+
+  ► Copy this password now — it will NOT be shown again.
+  ► Rotate it immediately after first login via:
+      PUT /api/v1/auth/password  (API)
+      or the UI settings page   (UI)
+
+{{- else }}
+
+  The credentials Secret already exists. No password change was made.
+  To reset the password, delete the Secret and re-run `helm upgrade`.
+
+{{- end }}
+
+Access the UI at:
+  http{{ if and .Values.tls .Values.tls.enabled }}s{{ end }}://{{ .Values.ingress.host | default "localhost" }}
