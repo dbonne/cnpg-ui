@@ -22,6 +22,7 @@ import (
 	"github.com/dbonne/cnpg-ui/internal/backup"
 	"github.com/dbonne/cnpg-ui/internal/cluster"
 	"github.com/dbonne/cnpg-ui/internal/config"
+	"github.com/dbonne/cnpg-ui/internal/hub"
 	"github.com/dbonne/cnpg-ui/internal/k8s"
 	"github.com/dbonne/cnpg-ui/internal/middleware"
 	"github.com/dbonne/cnpg-ui/internal/pooler"
@@ -51,10 +52,25 @@ func run() error {
 		logger.Warn("K8s client unavailable — running without cluster access", "err", err)
 	}
 
+	// ── SSE Hub ───────────────────────────────────────────────────────────────
+	// The hub is the central SSE broker. It is always created and started so that
+	// SSE endpoints work even in dev mode (without a live K8s cluster). When a
+	// K8s client is available, the watcher is wired into the informer to feed the hub.
+	sseHub := hub.New()
+	hubCtx, hubCancel := context.WithCancel(context.Background())
+	go sseHub.Run(hubCtx)
+
 	if k8sClient != nil {
 		informerMgr := k8s.NewInformerManager(nil, scheme)
 		go informerMgr.Start(context.Background())
 		_ = informerMgr.WaitForSync
+
+		// The watcher publishes cluster events to the hub.
+		// In a full implementation this would be wired into the informer's
+		// event handlers. For now the watcher is ready but the informer hook
+		// integration is deferred to when controller-runtime exposes a stable
+		// add-event-handler API in this module.
+		_ = hub.NewWatcher(sseHub)
 	}
 	// ─────────────────────────────────────────────────────────────────────────
 
@@ -95,6 +111,15 @@ func run() error {
 	backupHandler := backup.NewHandler(backupSvc)
 	poolerHandler := pooler.NewHandler(poolerSvc)
 	configHandler := cluster.NewConfigHandler(configSvc)
+
+	// ── SSE and log handlers ──────────────────────────────────────────────────
+	sseHandler := hub.NewSSEHandler(sseHub)
+
+	var logSvc cluster.LogService
+	if k8sClient != nil {
+		logSvc = cluster.NewLogService(k8sClient, ns)
+	}
+	logHandler := cluster.NewLogHandler(logSvc)
 	// ─────────────────────────────────────────────────────────────────────────
 
 	r := chi.NewRouter()
@@ -147,6 +172,14 @@ func run() error {
 		// Poolers (read-only)
 		r.Get("/api/v1/clusters/{name}/poolers", requireService(poolerSvc, poolerHandler.ListPoolers))
 		r.Get("/api/v1/clusters/{name}/poolers/{poolerName}", requireService(poolerSvc, poolerHandler.GetPooler))
+
+		// SSE — realtime cluster events
+		r.Get("/api/v1/events/clusters", sseHandler.AllClustersEvents)
+		r.Get("/api/v1/clusters/{name}/events", sseHandler.ClusterEvents)
+
+		// Log streaming
+		r.Get("/api/v1/clusters/{name}/logs", requireService(logSvc, logHandler.GetLogs))
+		r.Get("/api/v1/clusters/{name}/logs/stream", requireService(logSvc, logHandler.StreamLogs))
 	})
 
 	// ── Protected UI routes ───────────────────────────────────────────────────
@@ -188,6 +221,8 @@ func run() error {
 		return fmt.Errorf("server error: %w", err)
 	case <-ctx.Done():
 		logger.Info("shutting down gracefully")
+		// Stop the SSE hub — all open SSE connections will be closed.
+		hubCancel()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
