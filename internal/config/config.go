@@ -5,6 +5,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -30,6 +31,10 @@ type Config struct {
 
 	// TLSKeyPath is the path to the TLS private key file. Empty means HTTP only.
 	TLSKeyPath string
+
+	// CORSOrigins is the list of allowed CORS origins parsed from
+	// CNPG_UI_CORS_ORIGINS (comma-separated). Empty means same-origin only.
+	CORSOrigins []string
 }
 
 // Load reads configuration from environment variables, applying defaults for
@@ -43,6 +48,15 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid CNPG_UI_SESSION_TTL %q: %w", sessionTTLRaw, err)
 	}
 
+	var corsOrigins []string
+	if raw := os.Getenv("CNPG_UI_CORS_ORIGINS"); raw != "" {
+		for _, o := range strings.Split(raw, ",") {
+			if trimmed := strings.TrimSpace(o); trimmed != "" {
+				corsOrigins = append(corsOrigins, trimmed)
+			}
+		}
+	}
+
 	return &Config{
 		ServerAddr:   ":" + port,
 		K8sNamespace: getEnvOrDefault("CNPG_UI_NAMESPACE", "default"),
@@ -51,6 +65,7 @@ func Load() (*Config, error) {
 		LogLevel:     getEnvOrDefault("CNPG_UI_LOG_LEVEL", "info"),
 		TLSCertPath:  os.Getenv("CNPG_UI_TLS_CERT"),
 		TLSKeyPath:   os.Getenv("CNPG_UI_TLS_KEY"),
+		CORSOrigins:  corsOrigins,
 	}, nil
 }
 

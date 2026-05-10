@@ -115,6 +115,54 @@ func TestLoad_ServerAddrFormat(t *testing.T) {
 	}
 }
 
+// TestLoad_CORSOrigins verifies that CNPG_UI_CORS_ORIGINS is parsed into
+// a slice of trimmed origin strings.
+func TestLoad_CORSOrigins(t *testing.T) {
+	tests := []struct {
+		name    string
+		envVal  string
+		want    []string
+	}{
+		{
+			name:   "empty env var means same-origin only",
+			envVal: "",
+			want:   nil,
+		},
+		{
+			name:   "single origin",
+			envVal: "https://example.com",
+			want:   []string{"https://example.com"},
+		},
+		{
+			name:   "multiple origins comma-separated",
+			envVal: "https://example.com, https://app.example.com",
+			want:   []string{"https://example.com", "https://app.example.com"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clearEnv(t)
+			if tc.envVal != "" {
+				t.Setenv("CNPG_UI_CORS_ORIGINS", tc.envVal)
+			}
+			cfg, err := config.Load()
+			if err != nil {
+				t.Fatalf("Load(): %v", err)
+			}
+			if len(cfg.CORSOrigins) != len(tc.want) {
+				t.Errorf("CORSOrigins len = %d, want %d (%v)", len(cfg.CORSOrigins), len(tc.want), cfg.CORSOrigins)
+				return
+			}
+			for i, o := range cfg.CORSOrigins {
+				if o != tc.want[i] {
+					t.Errorf("CORSOrigins[%d] = %q, want %q", i, o, tc.want[i])
+				}
+			}
+		})
+	}
+}
+
 // clearEnv removes all CNPG_UI_ environment variables for a clean test state.
 func clearEnv(t *testing.T) {
 	t.Helper()
@@ -126,6 +174,7 @@ func clearEnv(t *testing.T) {
 		"CNPG_UI_SECRET_NAME",
 		"CNPG_UI_TLS_CERT",
 		"CNPG_UI_TLS_KEY",
+		"CNPG_UI_CORS_ORIGINS",
 	}
 	for _, v := range vars {
 		t.Setenv(v, "") // t.Setenv restores on cleanup

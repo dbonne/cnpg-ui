@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	chimw "github.com/go-chi/chi/v5/middleware"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/dbonne/cnpg-ui/internal/auth"
@@ -142,9 +141,10 @@ func run() error {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	r := chi.NewRouter()
-	r.Use(chimw.RequestID)
-	r.Use(chimw.RealIP)
-	r.Use(chimw.Recoverer)
+	// Middleware chain order (per design): Recovery → Logging → CORS → Router → Auth (per-group).
+	r.Use(middleware.Recovery())
+	r.Use(middleware.RequestLogger())
+	r.Use(middleware.CORS(cfg.CORSOrigins))
 
 	// Health check — no auth required.
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
