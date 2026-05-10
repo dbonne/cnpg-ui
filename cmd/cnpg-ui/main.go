@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,9 +19,12 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/dbonne/cnpg-ui/internal/auth"
+	"github.com/dbonne/cnpg-ui/internal/backup"
+	"github.com/dbonne/cnpg-ui/internal/cluster"
 	"github.com/dbonne/cnpg-ui/internal/config"
 	"github.com/dbonne/cnpg-ui/internal/k8s"
 	"github.com/dbonne/cnpg-ui/internal/middleware"
+	"github.com/dbonne/cnpg-ui/internal/pooler"
 )
 
 func main() {
@@ -48,9 +52,6 @@ func run() error {
 	}
 
 	if k8sClient != nil {
-		clusterReader := k8s.NewClusterReader(k8sClient)
-		_ = clusterReader // wired in PR 4 when service layer is added
-
 		informerMgr := k8s.NewInformerManager(nil, scheme)
 		go informerMgr.Start(context.Background())
 		_ = informerMgr.WaitForSync
@@ -69,12 +70,31 @@ func run() error {
 	if authSvc != nil {
 		sessionValidator = auth.NewSessionValidatorAdapter(authSvc)
 	} else {
-		// No K8s client — use a no-op validator that rejects all sessions.
-		// Auth routes will return 401/redirect. Useful for healthz-only dev mode.
 		sessionValidator = &rejectAllValidator{}
 	}
 
 	authHandler := auth.NewHandler(authSvc)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	// ── Domain services ───────────────────────────────────────────────────────
+	ns := cfg.K8sNamespace
+	var (
+		clusterSvc cluster.Service
+		backupSvc  backup.Service
+		poolerSvc  pooler.Service
+		configSvc  cluster.ConfigService
+	)
+	if k8sClient != nil {
+		clusterSvc = cluster.NewService(k8sClient, ns)
+		backupSvc = backup.NewService(k8sClient, ns)
+		poolerSvc = pooler.NewService(k8sClient, ns)
+		configSvc = cluster.NewConfigService(k8sClient, ns)
+	}
+
+	clusterHandler := cluster.NewHandler(clusterSvc)
+	backupHandler := backup.NewHandler(backupSvc)
+	poolerHandler := pooler.NewHandler(poolerSvc)
+	configHandler := cluster.NewConfigHandler(configSvc)
 	// ─────────────────────────────────────────────────────────────────────────
 
 	r := chi.NewRouter()
@@ -88,6 +108,9 @@ func run() error {
 		fmt.Fprint(w, "ok")
 	})
 
+	// OpenAPI spec — no auth required.
+	r.Get("/api/v1/openapi.json", serveOpenAPISpec)
+
 	// ── Auth endpoints (no session required) ──────────────────────────────────
 	r.Post("/api/v1/auth/login", authHandler.APILogin)
 	r.Post("/ui/login", authHandler.UILogin)
@@ -95,16 +118,42 @@ func run() error {
 	// ── Protected API routes ──────────────────────────────────────────────────
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.APIAuth(sessionValidator))
+
+		// Auth management
 		r.Post("/api/v1/auth/logout", authHandler.APILogout)
-		r.Post("/api/v1/auth/password", authHandler.ChangePassword)
-		// PR 4: cluster / backup / pooler API routes added here
+		r.Put("/api/v1/auth/password", authHandler.ChangePassword)
+
+		// Cluster CRUD
+		r.Get("/api/v1/clusters", requireService(clusterSvc, clusterHandler.ListClusters))
+		r.Post("/api/v1/clusters", requireService(clusterSvc, clusterHandler.CreateCluster))
+		r.Get("/api/v1/clusters/{name}", requireService(clusterSvc, clusterHandler.GetCluster))
+		r.Delete("/api/v1/clusters/{name}", requireService(clusterSvc, clusterHandler.DeleteCluster))
+		r.Patch("/api/v1/clusters/{name}/scale", requireService(clusterSvc, clusterHandler.ScaleCluster))
+
+		// Postgres config
+		r.Get("/api/v1/clusters/{name}/postgres-config", requireService(configSvc, configHandler.GetPostgresConfig))
+		r.Put("/api/v1/clusters/{name}/postgres-config", requireService(configSvc, configHandler.UpdatePostgresConfig))
+
+		// Backups
+		r.Get("/api/v1/clusters/{name}/backups", requireService(backupSvc, backupHandler.ListBackups))
+		r.Post("/api/v1/clusters/{name}/backups", requireService(backupSvc, backupHandler.TriggerBackup))
+
+		// Scheduled backups
+		r.Get("/api/v1/clusters/{name}/scheduled-backups", requireService(backupSvc, backupHandler.ListScheduledBackups))
+		r.Post("/api/v1/clusters/{name}/scheduled-backups", requireService(backupSvc, backupHandler.CreateScheduledBackup))
+		r.Get("/api/v1/clusters/{name}/scheduled-backups/{id}", requireService(backupSvc, backupHandler.GetScheduledBackup))
+		r.Delete("/api/v1/clusters/{name}/scheduled-backups/{id}", requireService(backupSvc, backupHandler.DeleteScheduledBackup))
+
+		// Poolers (read-only)
+		r.Get("/api/v1/clusters/{name}/poolers", requireService(poolerSvc, poolerHandler.ListPoolers))
+		r.Get("/api/v1/clusters/{name}/poolers/{poolerName}", requireService(poolerSvc, poolerHandler.GetPooler))
 	})
 
 	// ── Protected UI routes ───────────────────────────────────────────────────
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.UIAuth(sessionValidator))
 		r.Post("/ui/logout", authHandler.UILogout)
-		// PR 4: cluster / backup / pooler UI routes added here
+		// PR 6: UI routes for HTMX partials added here
 	})
 
 	// ── Login page (no auth) ─────────────────────────────────────────────────
@@ -149,6 +198,38 @@ func run() error {
 	return nil
 }
 
+// requireService returns a handler that responds 503 if the service is nil
+// (i.e. no K8s client is available). This prevents nil pointer panics.
+func requireService(svc interface{}, h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if svc == nil {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"error": "Kubernetes client not available",
+				"code":  "SERVICE_UNAVAILABLE",
+			})
+			return
+		}
+		h(w, r)
+	}
+}
+
+// serveOpenAPISpec serves the OpenAPI specification as JSON.
+// The YAML spec is embedded at build time from api/openapi.yaml.
+func serveOpenAPISpec(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	// The spec is served as a simple redirect message in this phase.
+	// In PR 7, the openapi.yaml will be embedded with //go:embed and
+	// converted to JSON. For now, we return the spec location.
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"spec": "/api/v1/openapi.json",
+		"yaml": "api/openapi.yaml",
+		"note": "Full OpenAPI spec available in api/openapi.yaml; JSON conversion added in PR7",
+	})
+}
+
 // rejectAllValidator is a SessionValidator that rejects every session.
 // It is used when no K8s client is available (dev / no-cluster mode).
 type rejectAllValidator struct{}
@@ -174,7 +255,7 @@ func newLogger(level string) *slog.Logger {
 }
 
 // loginPageHTML is a minimal login page served at GET /ui/login.
-// The full template will be replaced in PR 5 (UI layer).
+// The full template will be replaced in PR 6 (UI layer).
 const loginPageHTML = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><title>CNPG UI — Login</title></head>
