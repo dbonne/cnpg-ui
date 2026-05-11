@@ -18,47 +18,41 @@ linters:
     - bodyclose
     - gocritic
 
-linters-settings:
-  goimports:
-    local-prefixes: github.com/dbonne/cnpg-ui
+  settings:
+    goimports:
+      local-prefixes: github.com/dbonne/cnpg-ui
 
-  revive:
+    revive:
+      rules:
+        - name: exported
+          arguments:
+            - "checkPrivateReceivers"
+            - "sayRepetitiveInsteadOfStutters"
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+
+  exclusions:
+    generated: lax
     rules:
-      - name: exported
-        arguments:
-          - "checkPrivateReceivers"
-          - "sayRepetitiveInsteadOfStutters"
+      - path: ".*\\.gen\\.go"
+        linters:
+          - errcheck
+          - govet
+          - exhaustive
+          - unused
+          - revive
 
-  exhaustive:
-    # Require all switch cases for ErrorCode enum
-    default-signifies-exhaustive: true
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-
-issues:
-  exclude-use-default: false
-  max-issues-per-linter: 0
-  max-same-issues: 0
-
-  exclude-rules:
-    # Generated files are exempt from linting
-    - path: ".*\\.gen\\.go"
-      linters:
-        - errcheck
-        - govet
-        - exhaustive
-        - unused
-        - revive
-
-    # Test files are allowed to use t.Parallel and have larger functions
-    - path: "_test\\.go"
-      linters:
-        - gocritic
-        - godot
+      - path: "_test\\.go"
+        linters:
+          - gocritic
+          - godot
 
 run:
   timeout: 5m
