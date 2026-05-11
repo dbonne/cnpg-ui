@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,7 +22,7 @@ var panicHandler = http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request)
 func TestRecovery_NormalRequest_PassesThrough(t *testing.T) {
 	h := middleware.Recovery()(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 
@@ -35,7 +36,7 @@ func TestRecovery_NormalRequest_PassesThrough(t *testing.T) {
 func TestRecovery_PanicInAPIPath_Returns500JSON(t *testing.T) {
 	h := middleware.Recovery()(panicHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 
@@ -57,7 +58,7 @@ func TestRecovery_PanicInAPIPath_Returns500JSON(t *testing.T) {
 func TestRecovery_PanicInUIPath_Returns500HTML(t *testing.T) {
 	h := middleware.Recovery()(panicHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/ui/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 
@@ -79,7 +80,7 @@ func TestRecovery_PanicInUIPath_Returns500HTML(t *testing.T) {
 func TestRecovery_PanicInHealthPath_Returns500JSON(t *testing.T) {
 	h := middleware.Recovery()(panicHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 

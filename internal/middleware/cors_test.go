@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,7 +16,7 @@ import (
 func TestCORS_SameOriginDefault_NoOriginHeader(t *testing.T) {
 	h := middleware.CORS(nil)(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 
@@ -32,7 +33,7 @@ func TestCORS_SameOriginDefault_NoOriginHeader(t *testing.T) {
 func TestCORS_AllowedOrigin_SetsHeader(t *testing.T) {
 	h := middleware.CORS([]string{"https://example.com"})(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters", nil)
 	req.Header.Set("Origin", "https://example.com")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -51,7 +52,7 @@ func TestCORS_AllowedOrigin_SetsHeader(t *testing.T) {
 func TestCORS_DisallowedOrigin_NoHeader(t *testing.T) {
 	h := middleware.CORS([]string{"https://example.com"})(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters", nil)
 	req.Header.Set("Origin", "https://evil.com")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -68,7 +69,7 @@ func TestCORS_DisallowedOrigin_NoHeader(t *testing.T) {
 func TestCORS_PreflightOptions_Returns204(t *testing.T) {
 	h := middleware.CORS([]string{"https://example.com"})(okHandler)
 
-	req := httptest.NewRequest(http.MethodOptions, "/api/v1/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodOptions, "/api/v1/clusters", nil)
 	req.Header.Set("Origin", "https://example.com")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	req.Header.Set("Access-Control-Request-Headers", "Authorization, Content-Type")
@@ -95,7 +96,7 @@ func TestCORS_PreflightOptions_Returns204(t *testing.T) {
 func TestCORS_PreflightOptions_DisallowedOrigin(t *testing.T) {
 	h := middleware.CORS([]string{"https://example.com"})(okHandler)
 
-	req := httptest.NewRequest(http.MethodOptions, "/api/v1/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodOptions, "/api/v1/clusters", nil)
 	req.Header.Set("Origin", "https://evil.com")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	rr := httptest.NewRecorder()

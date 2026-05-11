@@ -94,7 +94,7 @@ func TestIntegration_LoginPage_rendersForm(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/login", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/login", nil)
 	router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -124,7 +124,7 @@ func TestIntegration_ClusterList_showsClusters(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters", nil)
 	router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -150,7 +150,7 @@ func TestIntegration_ClusterList_emptyState(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters", nil)
 	router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -179,7 +179,7 @@ func TestIntegration_ClusterDetail_loadsRealData(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/my-cluster", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/my-cluster", nil)
 	router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -201,7 +201,7 @@ func TestIntegration_ClusterDetail_fallsBackWithoutGetter(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/other-cluster", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/other-cluster", nil)
 	router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -232,7 +232,7 @@ func TestIntegration_OverviewPanel_rendersInstances(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/prod-db/overview", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/prod-db/overview", nil)
 	router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -261,7 +261,7 @@ func TestIntegration_OverviewPanel_noLayoutWrapper(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/x/overview", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/x/overview", nil)
 	router.ServeHTTP(w, r)
 
 	body := w.Body.String()
@@ -277,7 +277,7 @@ func TestIntegration_LogsPanel_rendersSSESetup(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/prod-db/logs-panel", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/prod-db/logs-panel", nil)
 	router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -295,7 +295,7 @@ func TestIntegration_LogsPanel_noLayoutWrapper(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/prod-db/logs-panel", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/prod-db/logs-panel", nil)
 	router.ServeHTTP(w, r)
 
 	body := w.Body.String()
@@ -319,7 +319,7 @@ func TestIntegration_ConfigPanel_rendersParameters(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/prod-db/config-panel", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/prod-db/config-panel", nil)
 	router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -342,7 +342,7 @@ func TestIntegration_ConfigPanel_noLayoutWrapper(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/prod-db/config-panel", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/prod-db/config-panel", nil)
 	router.ServeHTTP(w, r)
 
 	body := w.Body.String()
@@ -364,7 +364,7 @@ func TestIntegration_BackupsPanel_rendersBackups(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/prod-db/backups-panel", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/prod-db/backups-panel", nil)
 	router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -390,7 +390,7 @@ func TestIntegration_BackupsPanel_emptyState(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/prod-db/backups-panel", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/prod-db/backups-panel", nil)
 	router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -407,7 +407,7 @@ func TestIntegration_BackupsPanel_noLayoutWrapper(t *testing.T) {
 	router := newFullRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/prod-db/backups-panel", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/prod-db/backups-panel", nil)
 	router.ServeHTTP(w, r)
 
 	body := w.Body.String()

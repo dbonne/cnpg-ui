@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -36,7 +37,7 @@ func TestAPIAuth_ValidBearerToken(t *testing.T) {
 	svc := newStub(map[string]string{"valid-token": "admin"})
 	h := middleware.APIAuth(svc)(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters", nil)
 	req.Header.Set("Authorization", "Bearer valid-token")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -50,7 +51,7 @@ func TestAPIAuth_MissingAuthHeader_Returns401(t *testing.T) {
 	svc := newStub(map[string]string{})
 	h := middleware.APIAuth(svc)(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 
@@ -63,7 +64,7 @@ func TestAPIAuth_InvalidToken_Returns401(t *testing.T) {
 	svc := newStub(map[string]string{"valid-token": "admin"})
 	h := middleware.APIAuth(svc)(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters", nil)
 	req.Header.Set("Authorization", "Bearer bad-token")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -77,7 +78,7 @@ func TestAPIAuth_MalformedAuthHeader_Returns401(t *testing.T) {
 	svc := newStub(map[string]string{})
 	h := middleware.APIAuth(svc)(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters", nil)
 	req.Header.Set("Authorization", "Basic dXNlcjpwYXNz") // Basic, not Bearer
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -93,7 +94,7 @@ func TestUIAuth_ValidCookie(t *testing.T) {
 	svc := newStub(map[string]string{"valid-session": "admin"})
 	h := middleware.UIAuth(svc)(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/ui/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters", nil)
 	req.AddCookie(&http.Cookie{Name: "cnpg-ui-session", Value: "valid-session"})
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -107,7 +108,7 @@ func TestUIAuth_MissingCookie_RedirectsToLogin(t *testing.T) {
 	svc := newStub(map[string]string{})
 	h := middleware.UIAuth(svc)(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/ui/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 
@@ -124,7 +125,7 @@ func TestUIAuth_InvalidCookie_RedirectsToLogin(t *testing.T) {
 	svc := newStub(map[string]string{"valid-session": "admin"})
 	h := middleware.UIAuth(svc)(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/ui/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters", nil)
 	req.AddCookie(&http.Cookie{Name: "cnpg-ui-session", Value: "bad-session"})
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -143,7 +144,7 @@ func TestUIAuth_UsernameInjectedIntoContext(t *testing.T) {
 	})
 
 	h := middleware.UIAuth(svc)(captureHandler)
-	req := httptest.NewRequest(http.MethodGet, "/ui/clusters", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters", nil)
 	req.AddCookie(&http.Cookie{Name: "cnpg-ui-session", Value: "valid-session"})
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)

@@ -82,7 +82,7 @@ func TestListClusters_Handler_OK(t *testing.T) {
 	h := cluster.NewHandler(svc)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/clusters", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters", nil)
 	h.ListClusters(w, r)
 
 	if w.Code != http.StatusOK {
@@ -106,7 +106,7 @@ func TestListClusters_Handler_ServiceError(t *testing.T) {
 	h := cluster.NewHandler(svc)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/api/v1/clusters", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters", nil)
 	h.ListClusters(w, r)
 
 	if w.Code != http.StatusInternalServerError {
@@ -177,7 +177,7 @@ func TestCreateCluster_Handler_OK(t *testing.T) {
 
 	body, _ := json.Marshal(api.CreateClusterRequest{Name: "new-cluster", Instances: 1, StorageSize: "10Gi"})
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/clusters", bytes.NewReader(body))
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/clusters", bytes.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	h.CreateCluster(w, r)
 
@@ -202,7 +202,7 @@ func TestCreateCluster_Handler_InvalidBody(t *testing.T) {
 	h := cluster.NewHandler(svc)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "/api/v1/clusters",
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/clusters",
 		strings.NewReader("not json"))
 	r.Header.Set("Content-Type", "application/json")
 	h.CreateCluster(w, r)

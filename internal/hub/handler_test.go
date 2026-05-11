@@ -30,7 +30,7 @@ func TestSSEHandler_AllClusters_ResponseHeaders(t *testing.T) {
 	reqCtx, reqCancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer reqCancel()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/events/clusters", nil).WithContext(reqCtx)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/events/clusters", nil).WithContext(reqCtx)
 	w := httptest.NewRecorder()
 
 	// Run handler in goroutine — it blocks until request context is done.

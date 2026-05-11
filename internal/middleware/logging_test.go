@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,7 +16,7 @@ import (
 func TestRequestLogger_SetsRequestIDHeader(t *testing.T) {
 	h := middleware.RequestLogger()(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 
@@ -32,7 +33,7 @@ func TestRequestLogger_SetsRequestIDHeader(t *testing.T) {
 func TestRequestLogger_PreservesIncomingRequestID(t *testing.T) {
 	h := middleware.RequestLogger()(okHandler)
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
 	req.Header.Set("X-Request-ID", "client-provided-id")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -52,7 +53,7 @@ func TestRequestLogger_InjectsRequestIDIntoContext(t *testing.T) {
 	})
 
 	h := middleware.RequestLogger()(captureHandler)
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
 	req.Header.Set("X-Request-ID", "ctx-test-id")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -76,11 +77,11 @@ func TestRequestLogger_GeneratesUniqueIDsWhenNotProvided(t *testing.T) {
 
 	h := middleware.RequestLogger()(captureHandler)
 
-	req1 := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req1 := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
 	rr1 := httptest.NewRecorder()
 	h.ServeHTTP(rr1, req1)
 
-	req2 := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req2 := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthz", nil)
 	rr2 := httptest.NewRecorder()
 	h.ServeHTTP(rr2, req2)
 
@@ -100,7 +101,7 @@ func TestRequestLogger_PassesRequestThrough(t *testing.T) {
 	})
 	h := middleware.RequestLogger()(notFound)
 
-	req := httptest.NewRequest(http.MethodGet, "/missing", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/missing", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 

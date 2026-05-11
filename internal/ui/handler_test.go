@@ -2,6 +2,7 @@
 package ui_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -50,7 +51,7 @@ func TestNewUIHandler_success(t *testing.T) {
 func TestUIHandler_LoginPage_rendersHTML(t *testing.T) {
 	h := newTestHandler(t)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/login", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/login", nil)
 
 	h.LoginPage(w, r)
 
@@ -72,7 +73,7 @@ func TestUIHandler_LoginPage_rendersHTML(t *testing.T) {
 func TestUIHandler_LoginPage_containsPasswordField(t *testing.T) {
 	h := newTestHandler(t)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/login", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/login", nil)
 
 	h.LoginPage(w, r)
 
@@ -90,7 +91,7 @@ func TestUIHandler_LoginPage_containsPasswordField(t *testing.T) {
 func TestUIHandler_ListClusters_rendersHTML(t *testing.T) {
 	h := newTestHandler(t)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters", nil)
 
 	h.ListClusters(w, r)
 
@@ -109,7 +110,7 @@ func TestUIHandler_ListClusters_rendersHTML(t *testing.T) {
 func TestUIHandler_ListClusters_containsHTMXRefresh(t *testing.T) {
 	h := newTestHandler(t)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters", nil)
 
 	h.ListClusters(w, r)
 
@@ -126,7 +127,7 @@ func TestUIHandler_ClusterDetail_rendersHTML(t *testing.T) {
 	router := newChiRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/my-cluster", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/my-cluster", nil)
 	router.ServeHTTP(w, r)
 
 	if w.Code != http.StatusOK {
@@ -146,7 +147,7 @@ func TestUIHandler_ClusterDetail_containsTabs(t *testing.T) {
 	router := newChiRouter(h)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/ui/clusters/test-cluster", nil)
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/ui/clusters/test-cluster", nil)
 	router.ServeHTTP(w, r)
 
 	body := w.Body.String()

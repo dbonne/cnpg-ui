@@ -54,7 +54,7 @@ func TestLogsHandler_HistoricalLogs_ClusterNotFound(t *testing.T) {
 	r := chi.NewRouter()
 	r.Get("/api/v1/clusters/{name}/logs", handler.GetLogs)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters/nonexistent/logs", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters/nonexistent/logs", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -80,7 +80,7 @@ func TestLogsHandler_HistoricalLogs_NoPrimaryPod(t *testing.T) {
 	r := chi.NewRouter()
 	r.Get("/api/v1/clusters/{name}/logs", handler.GetLogs)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters/pg-main/logs", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters/pg-main/logs", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -116,7 +116,7 @@ func TestLogsHandler_StreamLogs_SetsSseHeaders(t *testing.T) {
 	reqCtx, reqCancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer reqCancel()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters/pg-main/logs/stream", nil).
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters/pg-main/logs/stream", nil).
 		WithContext(reqCtx)
 	w := httptest.NewRecorder()
 
@@ -147,7 +147,7 @@ func TestLogsHandler_StreamLogs_ClusterNotFound(t *testing.T) {
 	r := chi.NewRouter()
 	r.Get("/api/v1/clusters/{name}/logs/stream", handler.StreamLogs)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/clusters/unknown/logs/stream", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/clusters/unknown/logs/stream", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
