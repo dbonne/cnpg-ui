@@ -54,10 +54,10 @@ func (s *stubService) Delete(_ context.Context, _ string) error {
 func routedRequest(method, path string, body []byte, params map[string]string) *http.Request {
 	var r *http.Request
 	if body != nil {
-		r = httptest.NewRequest(method, path, bytes.NewReader(body))
+		r = httptest.NewRequestWithContext(context.Background(), method, path, bytes.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")
 	} else {
-		r = httptest.NewRequest(method, path, nil)
+		r = httptest.NewRequestWithContext(context.Background(), method, path, nil)
 	}
 
 	// Inject chi URL params
