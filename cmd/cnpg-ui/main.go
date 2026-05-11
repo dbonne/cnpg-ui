@@ -208,7 +208,7 @@ func run() error {
 	})
 
 	// ── UI handler (templates embedded at build time) ────────────────────────
-	uiHandler, err := ui.NewUIHandler(clusterSvc)
+	uiHandler, err := ui.NewUIHandler(clusterSvc, clusterSvc, backupSvc, poolerSvc, configSvc)
 	if err != nil {
 		return fmt.Errorf("initializing UI handler: %w", err)
 	}
@@ -226,23 +226,11 @@ func run() error {
 		r.Get("/ui/clusters", uiHandler.ListClusters)
 		r.Get("/ui/clusters/{name}", uiHandler.ClusterDetail)
 
-		// Log and config panel partials — stub until PR7 integrates them fully
-		r.Get("/ui/clusters/{name}/overview", func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprint(w, `<p style="color:#6b7280">Overview coming soon.</p>`)
-		})
-		r.Get("/ui/clusters/{name}/logs-panel", func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprint(w, `<p style="color:#6b7280">Log panel coming soon.</p>`)
-		})
-		r.Get("/ui/clusters/{name}/config-panel", func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprint(w, `<p style="color:#6b7280">Config panel coming soon.</p>`)
-		})
-		r.Get("/ui/clusters/{name}/backups-panel", func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			fmt.Fprint(w, `<p style="color:#6b7280">Backups panel coming soon.</p>`)
-		})
+		// Panel partials — HTMX fragments loaded by tab switching in ClusterDetail
+		r.Get("/ui/clusters/{name}/overview", uiHandler.OverviewPanel)
+		r.Get("/ui/clusters/{name}/logs-panel", uiHandler.LogsPanel)
+		r.Get("/ui/clusters/{name}/config-panel", uiHandler.ConfigPanel)
+		r.Get("/ui/clusters/{name}/backups-panel", uiHandler.BackupsPanel)
 	})
 	// ─────────────────────────────────────────────────────────────────────────
 
