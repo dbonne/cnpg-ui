@@ -43,7 +43,7 @@ func TestLoad_Defaults(t *testing.T) {
 func TestLoad_OverridesFromEnv(t *testing.T) {
 	clearEnv(t)
 
-	t.Setenv("CNPG_UI_PORT", "9090")
+	t.Setenv("CNPG_UI_LISTEN_PORT", "9090")
 	t.Setenv("CNPG_UI_NAMESPACE", "production")
 	t.Setenv("CNPG_UI_LOG_LEVEL", "debug")
 	t.Setenv("CNPG_UI_SESSION_TTL", "12h")
@@ -102,7 +102,7 @@ func TestLoad_ServerAddrFormat(t *testing.T) {
 	for _, tc := range tests {
 		t.Run("port="+tc.port, func(t *testing.T) {
 			clearEnv(t)
-			t.Setenv("CNPG_UI_PORT", tc.port)
+			t.Setenv("CNPG_UI_LISTEN_PORT", tc.port)
 
 			cfg, err := config.Load()
 			if err != nil {
@@ -167,7 +167,7 @@ func TestLoad_CORSOrigins(t *testing.T) {
 func clearEnv(t *testing.T) {
 	t.Helper()
 	vars := []string{
-		"CNPG_UI_PORT",
+		"CNPG_UI_LISTEN_PORT",
 		"CNPG_UI_NAMESPACE",
 		"CNPG_UI_LOG_LEVEL",
 		"CNPG_UI_SESSION_TTL",

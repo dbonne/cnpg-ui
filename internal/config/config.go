@@ -40,7 +40,7 @@ type Config struct {
 // Load reads configuration from environment variables, applying defaults for
 // missing values. It returns an error if any value cannot be parsed.
 func Load() (*Config, error) {
-	port := getEnvOrDefault("CNPG_UI_PORT", "8080")
+	port := getEnvOrDefault("CNPG_UI_LISTEN_PORT", "8080")
 
 	sessionTTLRaw := getEnvOrDefault("CNPG_UI_SESSION_TTL", "24h")
 	sessionTTL, err := time.ParseDuration(sessionTTLRaw)
