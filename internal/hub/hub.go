@@ -85,7 +85,7 @@ type subscribeMsg struct {
 
 type unsubscribeMsg struct {
 	topic string
-	recv  <-chan Event // matches the <-chan returned by Subscribe
+	recv  <-chan Event  // matches the <-chan returned by Subscribe
 	ack   chan struct{} // closed by hub once subscriber is removed
 }
 
@@ -157,7 +157,8 @@ func (h *Hub) Run(ctx interface{ Done() <-chan struct{} }) {
 			for _, s := range subs {
 				// Compare the receive-direction view of each subscriber channel
 				// against the receive-direction channel from the caller.
-				if (<-chan Event)(s.ch) != msg.recv {
+				subRecv := (<-chan Event)(s.ch)
+				if subRecv != msg.recv {
 					newSubs = append(newSubs, s)
 				}
 			}
@@ -196,5 +197,3 @@ func deliverDropOldest(ch chan Event, evt Event) {
 		}
 	}
 }
-
-

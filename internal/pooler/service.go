@@ -37,11 +37,11 @@ func (s *service) List(ctx context.Context, clusterName string) ([]api.PoolerSum
 	}
 
 	result := make([]api.PoolerSummary, 0)
-	for _, p := range list.Items {
-		if p.Spec.Cluster.Name != clusterName {
+	for i := range list.Items {
+		if list.Items[i].Spec.Cluster.Name != clusterName {
 			continue
 		}
-		result = append(result, toSummary(&p))
+		result = append(result, toSummary(&list.Items[i]))
 	}
 	return result, nil
 }

@@ -32,16 +32,24 @@ const (
 type ErrorCode string
 
 const (
-	CodeNotFound   ErrorCode = "NOT_FOUND"
-	CodeUnauth     ErrorCode = "UNAUTHORIZED"
-	CodeForbidden  ErrorCode = "FORBIDDEN"
-	CodeConflict   ErrorCode = "CONFLICT"
+	// CodeNotFound indicates the requested resource does not exist.
+	CodeNotFound ErrorCode = "NOT_FOUND"
+	// CodeUnauth indicates the request is not authenticated.
+	CodeUnauth ErrorCode = "UNAUTHORIZED"
+	// CodeForbidden indicates the authenticated user lacks permission.
+	CodeForbidden ErrorCode = "FORBIDDEN"
+	// CodeConflict indicates a state conflict (e.g. resource already exists).
+	CodeConflict ErrorCode = "CONFLICT"
+	// CodeValidation indicates the request contains invalid or missing fields.
 	CodeValidation ErrorCode = "VALIDATION_ERROR"
-	CodeInternal   ErrorCode = "INTERNAL_ERROR"
+	// CodeInternal indicates an unexpected server-side failure.
+	CodeInternal ErrorCode = "INTERNAL_ERROR"
 )
 
 // APIError is the canonical error response body. All 4xx/5xx responses use it.
 // JSON field names match the OpenAPI spec: {error, code, details?}.
+//
+//nolint:revive // APIError is intentionally named with the package prefix for clarity in external packages.
 type APIError struct {
 	Error   string          `json:"error"`
 	Code    ErrorCode       `json:"code"`
@@ -157,23 +165,23 @@ type UpdateScheduledBackupRequest struct {
 
 // PoolerSummary represents a Pooler CR (read-only).
 type PoolerSummary struct {
-	Name         string `json:"name"`
-	ClusterName  string `json:"clusterName"`
-	Type         string `json:"type"`
-	Instances    int    `json:"instances"`
-	PoolMode     string `json:"poolMode,omitempty"`
-	MaxClientConn int   `json:"maxClientConn,omitempty"`
+	Name          string `json:"name"`
+	ClusterName   string `json:"clusterName"`
+	Type          string `json:"type"`
+	Instances     int    `json:"instances"`
+	PoolMode      string `json:"poolMode,omitempty"`
+	MaxClientConn int    `json:"maxClientConn,omitempty"`
 }
 
 // ── Postgres Config ───────────────────────────────────────────────────────────
 
 // PgParamMetadata describes a single Postgres configuration parameter.
 type PgParamMetadata struct {
-	Name           string `json:"name"`
-	Type           string `json:"type"`
-	CurrentValue   string `json:"currentValue"`
-	DefaultValue   string `json:"defaultValue,omitempty"`
-	RequiresRestart bool  `json:"requiresRestart"`
+	Name            string `json:"name"`
+	Type            string `json:"type"`
+	CurrentValue    string `json:"currentValue"`
+	DefaultValue    string `json:"defaultValue,omitempty"`
+	RequiresRestart bool   `json:"requiresRestart"`
 }
 
 // PgConfigResponse is returned by GET and PUT /api/v1/clusters/{name}/postgres-config.

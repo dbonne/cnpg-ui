@@ -48,8 +48,8 @@ type ConfigGetter interface {
 	GetConfig(ctx context.Context, clusterName string) (*api.PgConfigResponse, error)
 }
 
-// UIHandler renders HTMX-powered HTML pages for the web UI.
-type UIHandler struct {
+// Handler renders HTMX-powered HTML pages for the web UI.
+type Handler struct {
 	// templates stores one compiled template set per page.
 	// Each page gets layout.html + its own page template, avoiding
 	// block name collisions between pages.
@@ -61,7 +61,7 @@ type UIHandler struct {
 	config    ConfigGetter
 }
 
-// NewUIHandler parses all embedded templates and returns a ready UIHandler.
+// NewUIHandler parses all embedded templates and returns a ready Handler.
 // All service parameters may be nil (graceful degradation — panels show empty state).
 // Returns an error if any template file fails to parse.
 func NewUIHandler(
@@ -70,7 +70,7 @@ func NewUIHandler(
 	backupLister BackupLister,
 	poolerLister PoolerLister,
 	configGetter ConfigGetter,
-) (*UIHandler, error) {
+) (*Handler, error) {
 	funcs := templateFuncs()
 	pages := map[string][]string{
 		"login":                   {"templates/login.html"},
@@ -91,7 +91,7 @@ func NewUIHandler(
 		templates[name] = t
 	}
 
-	return &UIHandler{
+	return &Handler{
 		templates: templates,
 		clusters:  clusterLister,
 		getter:    clusterGetter,
@@ -106,7 +106,7 @@ func NewUIHandler(
 // LoginPage handles GET /ui/login — renders the login form.
 // The handler always renders the form. Error messages are injected via
 // query param ?error=invalid+credentials when the POST handler redirects back.
-func (h *UIHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) LoginPage(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{
 		"Error": r.URL.Query().Get("error"),
 	}
@@ -116,7 +116,7 @@ func (h *UIHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
 // ListClusters handles GET /ui/clusters — renders the cluster list page.
 // Loads clusters from K8s on server-side render; HTMX will trigger refreshes
 // from SSE events for live updates.
-func (h *UIHandler) ListClusters(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ListClusters(w http.ResponseWriter, r *http.Request) {
 	username := middleware.UsernameFromContext(r.Context())
 
 	var rows []clusterRow
@@ -147,7 +147,7 @@ func (h *UIHandler) ListClusters(w http.ResponseWriter, r *http.Request) {
 // ClusterDetail handles GET /ui/clusters/{name} — renders the cluster detail page.
 // When ClusterGetter is configured, it loads real cluster data; otherwise it
 // degrades gracefully showing the cluster name with an unknown status.
-func (h *UIHandler) ClusterDetail(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ClusterDetail(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	username := middleware.UsernameFromContext(r.Context())
 
@@ -183,7 +183,7 @@ func (h *UIHandler) ClusterDetail(w http.ResponseWriter, r *http.Request) {
 
 // OverviewPanel handles GET /ui/clusters/{name}/overview — renders the overview HTML partial.
 // Shows cluster instances, status, primary node, and storage information.
-func (h *UIHandler) OverviewPanel(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) OverviewPanel(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 
 	data := map[string]interface{}{
@@ -217,7 +217,7 @@ func (h *UIHandler) OverviewPanel(w http.ResponseWriter, r *http.Request) {
 
 // LogsPanel handles GET /ui/clusters/{name}/logs-panel — renders the log viewer HTML partial.
 // The partial sets up an SSE connection to the log stream endpoint.
-func (h *UIHandler) LogsPanel(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) LogsPanel(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	data := map[string]interface{}{
 		"ClusterName": name,
@@ -227,7 +227,7 @@ func (h *UIHandler) LogsPanel(w http.ResponseWriter, r *http.Request) {
 
 // ConfigPanel handles GET /ui/clusters/{name}/config-panel — renders the Postgres config HTML partial.
 // Lists postgres parameters with their type metadata from the ConfigGetter.
-func (h *UIHandler) ConfigPanel(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ConfigPanel(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 
 	var params []api.PgParamMetadata
@@ -249,7 +249,7 @@ func (h *UIHandler) ConfigPanel(w http.ResponseWriter, r *http.Request) {
 
 // BackupsPanel handles GET /ui/clusters/{name}/backups-panel — renders the backups HTML partial.
 // Lists backups for the cluster from the BackupLister.
-func (h *UIHandler) BackupsPanel(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) BackupsPanel(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 
 	var backups []api.BackupSummary
@@ -273,7 +273,7 @@ func (h *UIHandler) BackupsPanel(w http.ResponseWriter, r *http.Request) {
 
 // renderPage renders a named template, writing HTML to w.
 // name is the page key (e.g. "login", "clusters/list", "clusters/detail").
-func (h *UIHandler) renderPage(w http.ResponseWriter, name string, data interface{}) {
+func (h *Handler) renderPage(w http.ResponseWriter, name string, data interface{}) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	t, ok := h.templates[name]
@@ -296,7 +296,7 @@ func (h *UIHandler) renderPage(w http.ResponseWriter, name string, data interfac
 
 // renderPanel renders an HTML fragment partial (no layout wrapper).
 // Panel templates are the filename within the embed.FS.
-func (h *UIHandler) renderPanel(w http.ResponseWriter, name string, data interface{}) {
+func (h *Handler) renderPanel(w http.ResponseWriter, name string, data interface{}) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	t, ok := h.templates[name]
@@ -313,7 +313,7 @@ func (h *UIHandler) renderPanel(w http.ResponseWriter, name string, data interfa
 }
 
 // templateFilename extracts the base filename for panel template execution.
-// e.g. "clusters/overview_panel" → "overview_panel.html"
+// e.g. "clusters/overview_panel" → "overview_panel.html".
 func templateFilename(name string) string {
 	for i := len(name) - 1; i >= 0; i-- {
 		if name[i] == '/' {

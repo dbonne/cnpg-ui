@@ -119,9 +119,9 @@ func TestLoad_ServerAddrFormat(t *testing.T) {
 // a slice of trimmed origin strings.
 func TestLoad_CORSOrigins(t *testing.T) {
 	tests := []struct {
-		name    string
-		envVal  string
-		want    []string
+		name   string
+		envVal string
+		want   []string
 	}{
 		{
 			name:   "empty env var means same-origin only",

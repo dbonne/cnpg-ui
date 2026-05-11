@@ -64,11 +64,15 @@ func TestSSEHandler_AllClusters_DeliverEvent(t *testing.T) {
 	defer srv.Close()
 
 	// Open the SSE stream
-	resp, err := http.Get(srv.URL)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("GET SSE stream: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Give the handler goroutine time to subscribe to the hub
 	time.Sleep(50 * time.Millisecond)
@@ -127,11 +131,15 @@ func TestSSEHandler_SingleCluster_TopicFiltering(t *testing.T) {
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/api/v1/clusters/pg-main/events")
+	req2, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/api/v1/clusters/pg-main/events", nil)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req2)
 	if err != nil {
 		t.Fatalf("GET single cluster SSE: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Give handler time to subscribe
 	time.Sleep(50 * time.Millisecond)

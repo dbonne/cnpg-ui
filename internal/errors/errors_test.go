@@ -82,15 +82,15 @@ func TestNew_DifferentCodes(t *testing.T) {
 // ---- Error() interface ----
 
 func TestAppError_ImplementsError(t *testing.T) {
-	var err error = apperrors.New(http.StatusNotFound, apperrors.CodeNotFound, "not found")
-	if err == nil {
-		t.Fatal("AppError should implement error interface")
-	}
-	if err.Error() == "" {
+	appErr := apperrors.New(http.StatusNotFound, apperrors.CodeNotFound, "not found")
+	// Verify *AppError satisfies the error interface at compile time via assignment.
+	var err error = appErr
+	_ = err
+	if appErr.Error() == "" {
 		t.Error("Error() must return non-empty string")
 	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("Error() should contain message, got: %q", err.Error())
+	if !strings.Contains(appErr.Error(), "not found") {
+		t.Errorf("Error() should contain message, got: %q", appErr.Error())
 	}
 }
 

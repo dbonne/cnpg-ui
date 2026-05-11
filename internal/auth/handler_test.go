@@ -52,7 +52,7 @@ func TestHandler_APILogin_ValidJSON(t *testing.T) {
 	h := auth.NewHandler(svc, false)
 
 	body := `{"username":"admin","password":"secret"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	h.APILogin(rr, req)
@@ -94,7 +94,7 @@ func TestHandler_APILogin_InvalidPassword_Returns401(t *testing.T) {
 	h := auth.NewHandler(svc, false)
 
 	body := `{"username":"admin","password":"wrong"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	h.APILogin(rr, req)
@@ -108,7 +108,7 @@ func TestHandler_APILogin_MalformedJSON_Returns400(t *testing.T) {
 	svc := newTestService(t, "admin", "secret")
 	h := auth.NewHandler(svc, false)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login",
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/login",
 		bytes.NewReader([]byte("not-json")))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()

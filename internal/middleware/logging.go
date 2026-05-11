@@ -29,6 +29,7 @@ func newResponseWriter(w http.ResponseWriter) *responseWriter {
 	return &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 }
 
+// WriteHeader captures the status code and delegates to the wrapped ResponseWriter.
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)

@@ -43,11 +43,11 @@ func (s *service) ListBackups(ctx context.Context, clusterName string) ([]api.Ba
 	}
 
 	result := make([]api.BackupSummary, 0)
-	for _, b := range list.Items {
-		if b.Spec.Cluster.Name != clusterName {
+	for i := range list.Items {
+		if list.Items[i].Spec.Cluster.Name != clusterName {
 			continue
 		}
-		result = append(result, toBackupSummary(&b))
+		result = append(result, toBackupSummary(&list.Items[i]))
 	}
 	return result, nil
 }
@@ -55,8 +55,8 @@ func (s *service) ListBackups(ctx context.Context, clusterName string) ([]api.Ba
 // validBackupMethods is the set of allowed BackupMethod values.
 var validBackupMethods = map[cnpgv1.BackupMethod]struct{}{
 	cnpgv1.BackupMethodBarmanObjectStore: {},
-	cnpgv1.BackupMethodVolumeSnapshot:   {},
-	cnpgv1.BackupMethodPlugin:           {},
+	cnpgv1.BackupMethodVolumeSnapshot:    {},
+	cnpgv1.BackupMethodPlugin:            {},
 }
 
 // TriggerBackup creates an on-demand Backup CR for the given cluster.
@@ -109,11 +109,11 @@ func (s *service) ListScheduledBackups(ctx context.Context, clusterName string) 
 	}
 
 	result := make([]api.ScheduledBackupSummary, 0)
-	for _, sb := range list.Items {
-		if sb.Spec.Cluster.Name != clusterName {
+	for i := range list.Items {
+		if list.Items[i].Spec.Cluster.Name != clusterName {
 			continue
 		}
-		result = append(result, toScheduledSummary(&sb))
+		result = append(result, toScheduledSummary(&list.Items[i]))
 	}
 	return result, nil
 }

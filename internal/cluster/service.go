@@ -8,8 +8,8 @@ import (
 
 	cnpgv1 "github.com/cloudnative-pg/api/pkg/api/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/dbonne/cnpg-ui/internal/api"
@@ -20,7 +20,7 @@ import (
 type Service interface {
 	List(ctx context.Context) ([]api.ClusterSummary, error)
 	Get(ctx context.Context, name string) (*api.ClusterDetail, error)
-	Create(ctx context.Context, req api.CreateClusterRequest) (*api.ClusterDetail, error)
+	Create(ctx context.Context, req *api.CreateClusterRequest) (*api.ClusterDetail, error)
 	Update(ctx context.Context, name string, req api.UpdateClusterRequest) (*api.ClusterDetail, error)
 	Scale(ctx context.Context, name string, req api.ScaleClusterRequest) (*api.ClusterDetail, error)
 	Delete(ctx context.Context, name string) error
@@ -46,8 +46,8 @@ func (s *service) List(ctx context.Context) ([]api.ClusterSummary, error) {
 	}
 
 	result := make([]api.ClusterSummary, 0, len(list.Items))
-	for _, cl := range list.Items {
-		result = append(result, toSummary(&cl))
+	for i := range list.Items {
+		result = append(result, toSummary(&list.Items[i]))
 	}
 	return result, nil
 }
@@ -63,7 +63,7 @@ func (s *service) Get(ctx context.Context, name string) (*api.ClusterDetail, err
 }
 
 // Create creates a new CNPG Cluster CR from the request body.
-func (s *service) Create(ctx context.Context, req api.CreateClusterRequest) (*api.ClusterDetail, error) {
+func (s *service) Create(ctx context.Context, req *api.CreateClusterRequest) (*api.ClusterDetail, error) {
 	ns := req.Namespace
 	if ns == "" {
 		ns = s.namespace

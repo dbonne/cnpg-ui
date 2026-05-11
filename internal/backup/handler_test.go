@@ -17,19 +17,19 @@ import (
 
 // stubService is a test double for backup.Service.
 type stubService struct {
-	listBackupsResult            []api.BackupSummary
-	listBackupsErr               error
-	triggerBackupResult          *api.BackupSummary
-	triggerBackupErr             error
-	listScheduledBackupsResult   []api.ScheduledBackupSummary
-	listScheduledBackupsErr      error
-	getScheduledBackupResult     *api.ScheduledBackupSummary
-	getScheduledBackupErr        error
-	createScheduledBackupResult  *api.ScheduledBackupSummary
-	createScheduledBackupErr     error
-	updateScheduledBackupResult  *api.ScheduledBackupSummary
-	updateScheduledBackupErr     error
-	deleteScheduledBackupErr     error
+	listBackupsResult           []api.BackupSummary
+	listBackupsErr              error
+	triggerBackupResult         *api.BackupSummary
+	triggerBackupErr            error
+	listScheduledBackupsResult  []api.ScheduledBackupSummary
+	listScheduledBackupsErr     error
+	getScheduledBackupResult    *api.ScheduledBackupSummary
+	getScheduledBackupErr       error
+	createScheduledBackupResult *api.ScheduledBackupSummary
+	createScheduledBackupErr    error
+	updateScheduledBackupResult *api.ScheduledBackupSummary
+	updateScheduledBackupErr    error
+	deleteScheduledBackupErr    error
 }
 
 func (s *stubService) ListBackups(_ context.Context, _ string) ([]api.BackupSummary, error) {

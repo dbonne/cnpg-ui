@@ -132,7 +132,7 @@ func TestClusterCreate_WithEnvtest(t *testing.T) {
 		Instances:   2,
 		StorageSize: "5Gi",
 	}
-	detail, err := svc.Create(ctx, req)
+	detail, err := svc.Create(ctx, &req)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

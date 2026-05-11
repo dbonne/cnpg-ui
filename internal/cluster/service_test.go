@@ -155,7 +155,7 @@ func TestCreateCluster_MinimalSpec(t *testing.T) {
 		Instances:   1,
 		StorageSize: "10Gi",
 	}
-	detail, err := svc.Create(context.Background(), req)
+	detail, err := svc.Create(context.Background(), &req)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}

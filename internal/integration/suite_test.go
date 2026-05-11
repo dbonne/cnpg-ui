@@ -79,8 +79,6 @@ func startEnvtest(t *testing.T) (*envtest.Environment, client.Client) {
 	return testEnv, k8sClient
 }
 
-
-
 // createNamespace creates a test namespace and registers cleanup.
 func createNamespace(t *testing.T, c client.Client, name string) {
 	t.Helper()

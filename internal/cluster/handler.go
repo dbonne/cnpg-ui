@@ -54,7 +54,7 @@ func (h *Handler) CreateCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	detail, err := h.svc.Create(r.Context(), req)
+	detail, err := h.svc.Create(r.Context(), &req)
 	if err != nil {
 		if isConflict(err) {
 			writeError(w, http.StatusConflict, apierr.CodeConflict, err.Error())

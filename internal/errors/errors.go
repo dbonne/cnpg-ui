@@ -79,6 +79,6 @@ func (e *AppError) RenderJSON(w http.ResponseWriter) {
 func (e *AppError) RenderHTML(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(e.HTTPStatus)
-	fmt.Fprintf(w, `<div class="error-partial" data-code="%s"><p>%s</p></div>`,
+	_, _ = fmt.Fprintf(w, `<div class="error-partial" data-code="%s"><p>%s</p></div>`,
 		e.Code, e.Message)
 }

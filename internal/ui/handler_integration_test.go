@@ -46,16 +46,6 @@ func (m *mockBackupLister) ListBackups(_ context.Context, _ string) ([]api.Backu
 	return m.backups, m.err
 }
 
-// mockPoolerLister stubs PoolerLister.
-type mockPoolerLister struct {
-	poolers []api.PoolerSummary
-	err     error
-}
-
-func (m *mockPoolerLister) List(_ context.Context, _ string) ([]api.PoolerSummary, error) {
-	return m.poolers, m.err
-}
-
 // mockConfigGetter stubs ConfigGetter.
 type mockConfigGetter struct {
 	resp *api.PgConfigResponse
@@ -68,14 +58,14 @@ func (m *mockConfigGetter) GetConfig(_ context.Context, _ string) (*api.PgConfig
 
 // ── Test router builder ───────────────────────────────────────────────────────
 
-// newIntegrationHandler builds a UIHandler with all mock services injected.
+// newIntegrationHandler builds a Handler with all mock services injected.
 func newIntegrationHandler(t *testing.T,
 	lister ui.ClusterLister,
 	getter ui.ClusterGetter,
 	backups ui.BackupLister,
 	poolers ui.PoolerLister,
 	cfg ui.ConfigGetter,
-) *ui.UIHandler {
+) *ui.Handler {
 	t.Helper()
 	h, err := ui.NewUIHandler(lister, getter, backups, poolers, cfg)
 	if err != nil {
@@ -85,7 +75,7 @@ func newIntegrationHandler(t *testing.T,
 }
 
 // newFullRouter registers all UI routes including panel endpoints.
-func newFullRouter(h *ui.UIHandler) *chi.Mux {
+func newFullRouter(h *ui.Handler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Get("/ui/login", h.LoginPage)
 	r.Get("/ui/clusters", h.ListClusters)

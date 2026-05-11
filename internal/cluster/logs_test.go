@@ -204,11 +204,15 @@ func TestLogsHandler_StreamOutput_ContainsPodName(t *testing.T) {
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/api/v1/clusters/pg-main/logs/stream")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/api/v1/clusters/pg-main/logs/stream", nil)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("GET stream: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// The fake K8s client doesn't produce real pod logs, but the handler should
 	// at minimum emit a metadata event with the pod name.

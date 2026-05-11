@@ -31,16 +31,16 @@ func NewConfigService(c client.Client, namespace string) ConfigService {
 // restartParams is the set of well-known Postgres parameters that require a restart.
 // This is a representative subset used for the UI metadata — not exhaustive.
 var restartParams = map[string]struct{}{
-	"shared_buffers":              {},
-	"max_connections":             {},
-	"wal_level":                   {},
-	"archive_mode":                {},
-	"max_wal_senders":             {},
-	"max_replication_slots":       {},
-	"hot_standby":                 {},
-	"shared_preload_libraries":    {},
-	"listen_addresses":            {},
-	"port":                        {},
+	"shared_buffers":           {},
+	"max_connections":          {},
+	"wal_level":                {},
+	"archive_mode":             {},
+	"max_wal_senders":          {},
+	"max_replication_slots":    {},
+	"hot_standby":              {},
+	"shared_preload_libraries": {},
+	"listen_addresses":         {},
+	"port":                     {},
 }
 
 // GetConfig returns the current Postgres parameters for a cluster, enriched

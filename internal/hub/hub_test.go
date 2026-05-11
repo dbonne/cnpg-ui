@@ -192,7 +192,7 @@ func TestHub_DropOldestOnBufferFull(t *testing.T) {
 
 	// We should be able to drain the channel (it didn't block/deadlock)
 	count := 0
-	drain:
+drain:
 	for {
 		select {
 		case <-ch:

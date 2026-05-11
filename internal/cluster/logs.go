@@ -134,7 +134,7 @@ func (h *LogHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 			"failed to get pod logs: "+err.Error())
 		return
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Read all lines and return as JSON array
 	var logLines []string
@@ -189,17 +189,17 @@ func (h *LogHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Send a metadata event with the pod name so the client knows which pod is streaming.
 	meta, _ := json.Marshal(map[string]string{"pod": podName})
-	fmt.Fprintf(w, "event: log.meta\ndata: %s\n\n", meta)
+	_, _ = fmt.Fprintf(w, "event: log.meta\ndata: %s\n\n", meta)
 	flusher.Flush()
 
 	// Open the log stream with Follow=true for live tail.
 	reader, err := h.svc.StreamPodLogs(r.Context(), podName, true, 0)
 	if err != nil {
-		fmt.Fprintf(w, "event: log.error\ndata: {\"error\":%q}\n\n", err.Error())
+		_, _ = fmt.Fprintf(w, "event: log.error\ndata: {\"error\":%q}\n\n", err.Error())
 		flusher.Flush()
 		return
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
@@ -210,7 +210,7 @@ func (h *LogHandler) StreamLogs(w http.ResponseWriter, r *http.Request) {
 		}
 		line := scanner.Text()
 		data, _ := json.Marshal(map[string]string{"line": line})
-		fmt.Fprintf(w, "event: log.line\ndata: %s\n\n", data)
+		_, _ = fmt.Fprintf(w, "event: log.line\ndata: %s\n\n", data)
 		flusher.Flush()
 	}
 }

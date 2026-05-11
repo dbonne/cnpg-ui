@@ -41,8 +41,13 @@ type realInformerManager struct {
 // noopInformerManager is used when no real K8s config is available (e.g., tests).
 type noopInformerManager struct{}
 
-func (n *noopInformerManager) Start(_ context.Context)            {}
+// Start is a no-op implementation of InformerManager.Start for testing/dev mode.
+func (n *noopInformerManager) Start(_ context.Context) {}
+
+// WaitForSync is a no-op implementation that always returns false in testing/dev mode.
 func (n *noopInformerManager) WaitForSync(_ context.Context) bool { return false }
+
+// AddClusterEventHandler is a no-op implementation that does nothing in testing/dev mode.
 func (n *noopInformerManager) AddClusterEventHandler(_ context.Context, _ toolscache.ResourceEventHandler) error {
 	return nil
 }

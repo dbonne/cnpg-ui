@@ -73,7 +73,7 @@ func (h *SSEHandler) streamTopic(w http.ResponseWriter, r *http.Request, topic s
 				// Channel closed — hub shut down.
 				return
 			}
-			fmt.Fprint(w, evt.Format())
+			_, _ = fmt.Fprint(w, evt.Format())
 			flusher.Flush()
 		}
 	}

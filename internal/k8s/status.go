@@ -35,29 +35,29 @@ func (s NormalizedStatus) String() string {
 // transientPhases is the set of CNPG phase strings that represent temporary,
 // expected operations. Using a map[string]struct{} gives O(1) lookup.
 var transientPhases = map[string]struct{}{
-	cnpgv1.PhaseSwitchover:                {},
-	cnpgv1.PhaseFirstPrimary:              {},
-	cnpgv1.PhaseCreatingReplica:           {},
-	cnpgv1.PhaseUpgrade:                   {},
-	cnpgv1.PhaseMajorUpgrade:              {},
-	cnpgv1.PhaseUpgradeDelayed:            {},
-	cnpgv1.PhaseWaitingForUser:            {},
-	cnpgv1.PhaseInplacePrimaryRestart:     {},
-	cnpgv1.PhaseInplaceDeletePrimaryRestart: {},
+	cnpgv1.PhaseSwitchover:                    {},
+	cnpgv1.PhaseFirstPrimary:                  {},
+	cnpgv1.PhaseCreatingReplica:               {},
+	cnpgv1.PhaseUpgrade:                       {},
+	cnpgv1.PhaseMajorUpgrade:                  {},
+	cnpgv1.PhaseUpgradeDelayed:                {},
+	cnpgv1.PhaseWaitingForUser:                {},
+	cnpgv1.PhaseInplacePrimaryRestart:         {},
+	cnpgv1.PhaseInplaceDeletePrimaryRestart:   {},
 	cnpgv1.PhaseWaitingForInstancesToBeActive: {},
-	cnpgv1.PhaseOnlineUpgrading:           {},
-	cnpgv1.PhaseApplyingConfiguration:     {},
-	cnpgv1.PhaseReplicaClusterPromotion:   {},
+	cnpgv1.PhaseOnlineUpgrading:               {},
+	cnpgv1.PhaseApplyingConfiguration:         {},
+	cnpgv1.PhaseReplicaClusterPromotion:       {},
 }
 
 // faultPhases is the set of CNPG phase strings that indicate an error state.
 var faultPhases = map[string]struct{}{
-	cnpgv1.PhaseFailOver:                  {},
-	cnpgv1.PhaseUnrecoverable:             {},
-	cnpgv1.PhaseUnknownPlugin:             {},
-	cnpgv1.PhaseFailurePlugin:             {},
-	cnpgv1.PhaseImageCatalogError:         {},
-	cnpgv1.PhaseArchitectureBinaryMissing: {},
+	cnpgv1.PhaseFailOver:                   {},
+	cnpgv1.PhaseUnrecoverable:              {},
+	cnpgv1.PhaseUnknownPlugin:              {},
+	cnpgv1.PhaseFailurePlugin:              {},
+	cnpgv1.PhaseImageCatalogError:          {},
+	cnpgv1.PhaseArchitectureBinaryMissing:  {},
 	cnpgv1.PhaseCannotCreateClusterObjects: {},
 }
 

@@ -15,8 +15,8 @@ import (
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-// newTestHandler creates a UIHandler pointing at the real embedded templates.
-func newTestHandler(t *testing.T) *ui.UIHandler {
+// newTestHandler creates a Handler pointing at the real embedded templates.
+func newTestHandler(t *testing.T) *ui.Handler {
 	t.Helper()
 	h, err := ui.NewUIHandler(nil, nil, nil, nil, nil)
 	if err != nil {
@@ -25,7 +25,7 @@ func newTestHandler(t *testing.T) *ui.UIHandler {
 	return h
 }
 
-func newChiRouter(h *ui.UIHandler) *chi.Mux {
+func newChiRouter(h *ui.Handler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Get("/ui/login", h.LoginPage)
 	r.Get("/ui/clusters", h.ListClusters)

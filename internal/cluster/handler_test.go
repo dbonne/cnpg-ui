@@ -37,7 +37,7 @@ func (s *stubService) List(_ context.Context) ([]api.ClusterSummary, error) {
 func (s *stubService) Get(_ context.Context, _ string) (*api.ClusterDetail, error) {
 	return s.getResult, s.getErr
 }
-func (s *stubService) Create(_ context.Context, _ api.CreateClusterRequest) (*api.ClusterDetail, error) {
+func (s *stubService) Create(_ context.Context, _ *api.CreateClusterRequest) (*api.ClusterDetail, error) {
 	return s.createResult, s.createErr
 }
 func (s *stubService) Update(_ context.Context, _ string, _ api.UpdateClusterRequest) (*api.ClusterDetail, error) {

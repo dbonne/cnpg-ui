@@ -150,7 +150,7 @@ func run() error {
 	// Health check — no auth required.
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "ok")
+		_, _ = fmt.Fprint(w, "ok")
 	})
 
 	// OpenAPI spec — no auth required.
@@ -334,5 +334,3 @@ func newLogger(level string) *slog.Logger {
 	}
 	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: l}))
 }
-
-

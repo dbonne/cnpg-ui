@@ -28,7 +28,7 @@ func helmTemplate(t *testing.T, extraArgs ...string) string {
 	dir := chartDir(t)
 
 	args := append([]string{"template", "test-release", dir}, extraArgs...)
-	cmd := exec.Command("helm", args...)
+	cmd := exec.CommandContext(t.Context(), "helm", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("helm template failed: %v\n%s", err, out)
