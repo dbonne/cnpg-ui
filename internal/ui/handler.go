@@ -28,27 +28,34 @@ type ClusterLister interface {
 
 // UIHandler renders HTMX-powered HTML pages for the web UI.
 type UIHandler struct {
-	// tmpl is the parsed template set (layout + all pages).
-	// Parsing once at startup ensures startup-time errors surface early.
-	tmpl     *template.Template
-	clusters ClusterLister
+	// templates stores one compiled template set per page.
+	// Each page gets layout.html + its own page template, avoiding
+	// block name collisions between pages.
+	templates map[string]*template.Template
+	clusters  ClusterLister
 }
 
 // NewUIHandler parses all embedded templates and returns a ready UIHandler.
 // clusterLister may be nil (clusters will show as empty).
 // Returns an error if any template file fails to parse.
 func NewUIHandler(clusterLister ClusterLister) (*UIHandler, error) {
-	tmpl, err := template.New("").Funcs(templateFuncs()).ParseFS(
-		templateFS,
-		"templates/layout.html",
-		"templates/login.html",
-		"templates/clusters/list.html",
-		"templates/clusters/detail.html",
-	)
-	if err != nil {
-		return nil, fmt.Errorf("parsing UI templates: %w", err)
+	funcs := templateFuncs()
+	pages := map[string][]string{
+		"login":          {"templates/login.html"},
+		"clusters/list":  {"templates/layout.html", "templates/clusters/list.html"},
+		"clusters/detail": {"templates/layout.html", "templates/clusters/detail.html"},
 	}
-	return &UIHandler{tmpl: tmpl, clusters: clusterLister}, nil
+
+	templates := make(map[string]*template.Template, len(pages))
+	for name, files := range pages {
+		t, err := template.New("").Funcs(funcs).ParseFS(templateFS, files...)
+		if err != nil {
+			return nil, fmt.Errorf("parsing template %q: %w", name, err)
+		}
+		templates[name] = t
+	}
+
+	return &UIHandler{templates: templates, clusters: clusterLister}, nil
 }
 
 // ── Page handlers ──────────────────────────────────────────────────────────────
@@ -60,7 +67,7 @@ func (h *UIHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
 	data := map[string]interface{}{
 		"Error": r.URL.Query().Get("error"),
 	}
-	h.renderPage(w, "login.html", data)
+	h.renderPage(w, "login", data)
 }
 
 // ListClusters handles GET /ui/clusters — renders the cluster list page.
@@ -91,7 +98,7 @@ func (h *UIHandler) ListClusters(w http.ResponseWriter, r *http.Request) {
 		"ActiveNav": "clusters",
 		"Clusters":  rows,
 	}
-	h.renderPage(w, "clusters/list.html", data)
+	h.renderPage(w, "clusters/list", data)
 }
 
 // ClusterDetail handles GET /ui/clusters/{name} — renders the cluster detail page.
@@ -105,33 +112,30 @@ func (h *UIHandler) ClusterDetail(w http.ResponseWriter, r *http.Request) {
 		"Status":      api.StatusHealthy,
 		"StatusClass": StatusBadgeClass(api.StatusHealthy),
 	}
-	h.renderPage(w, "clusters/detail.html", data)
+	h.renderPage(w, "clusters/detail", data)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// renderPage renders a named template from the compiled set, writing HTML to w.
-// The template name matches the filename relative to the templates/ dir.
-// On error a 500 is returned; the error is logged to stderr.
+// renderPage renders a named template, writing HTML to w.
+// name is the page key (e.g. "login", "clusters/list", "clusters/detail").
 func (h *UIHandler) renderPage(w http.ResponseWriter, name string, data interface{}) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	// For standalone pages (login) we execute the template by its base name.
-	// For layout-wrapped pages the template defines "content" and "layout" is
-	// invoked via "{{template "layout" .}}" in the page file.
-	// html/template.ParseFS registers every file by its path relative to the FS
-	// root; we look up by basename to keep call sites simple.
-	var tmplName string
-	switch name {
-	case "login.html":
-		tmplName = "login.html"
-	default:
-		// layout-wrapped pages: execute the layout template which calls {{block "content" .}}
-		tmplName = "layout.html"
+	t, ok := h.templates[name]
+	if !ok {
+		http.Error(w, "template not found: "+name, http.StatusInternalServerError)
+		return
 	}
 
-	if err := h.tmpl.ExecuteTemplate(w, tmplName, data); err != nil {
-		// Header may already be written; best-effort 500.
+	// Standalone pages (login) render by their own filename.
+	// Layout-wrapped pages render "layout.html" which invokes {{block "content"}}.
+	execName := "layout.html"
+	if name == "login" {
+		execName = "login.html"
+	}
+
+	if err := t.ExecuteTemplate(w, execName, data); err != nil {
 		http.Error(w, "template rendering error: "+err.Error(), http.StatusInternalServerError)
 	}
 }
