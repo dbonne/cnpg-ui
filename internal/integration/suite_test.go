@@ -47,21 +47,16 @@ func startEnvtest(t *testing.T) (*envtest.Environment, client.Client) {
 		t.Skip("KUBEBUILDER_ASSETS not set — skipping envtest integration tests")
 	}
 
-	// Locate CNPG CRD files from the cached module.
+	// Locate CNPG CRD files from testdata/ bundled in this package.
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
-	_ = thisFile
-
-	// Resolve CNPG API module path to find bundled CRDs.
-	// The cloudnative-pg/api module ships CRD YAMLs under config/crd/bases/.
-	// We use the module cache path to load them.
-	cnpgModuleDir := cnpgCRDDir(t)
+	crdDir := filepath.Join(filepath.Dir(thisFile), "testdata", "crds")
 
 	testEnv := &envtest.Environment{
-		CRDDirectoryPaths: []string{cnpgModuleDir},
-		ErrorIfCRDPathMissing: false, // CRD dir may not exist in all versions
+		CRDDirectoryPaths:     []string{crdDir},
+		ErrorIfCRDPathMissing: true,
 	}
 
 	cfg, err := testEnv.Start()
@@ -84,34 +79,7 @@ func startEnvtest(t *testing.T) (*envtest.Environment, client.Client) {
 	return testEnv, k8sClient
 }
 
-// cnpgCRDDir returns the CRD directory from the cloudnative-pg/api module cache.
-// Returns an empty string if not found (envtest will ignore missing paths with
-// ErrorIfCRDPathMissing: false).
-func cnpgCRDDir(t *testing.T) string {
-	t.Helper()
-	modPath := os.Getenv("GOPATH")
-	if modPath == "" {
-		home, _ := os.UserHomeDir()
-		modPath = filepath.Join(home, "go")
-	}
-	// Try to find the CNPG api module in the module cache.
-	cacheBase := filepath.Join(modPath, "pkg", "mod", "github.com", "cloudnative-pg")
-	entries, err := os.ReadDir(cacheBase)
-	if err != nil {
-		t.Logf("could not read CNPG module cache at %s: %v", cacheBase, err)
-		return ""
-	}
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		crdPath := filepath.Join(cacheBase, e.Name(), "config", "crd", "bases")
-		if _, err := os.Stat(crdPath); err == nil {
-			return crdPath
-		}
-	}
-	return ""
-}
+
 
 // createNamespace creates a test namespace and registers cleanup.
 func createNamespace(t *testing.T, c client.Client, name string) {
