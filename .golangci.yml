@@ -8,8 +8,6 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
     - revive
     - exhaustive
@@ -19,9 +17,6 @@ linters:
     - gocritic
 
   settings:
-    goimports:
-      local-prefixes: github.com/dbonne/cnpg-ui
-
     revive:
       rules:
         - name: exported
@@ -53,6 +48,15 @@ linters:
         linters:
           - gocritic
           - godot
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/dbonne/cnpg-ui
 
 run:
   timeout: 5m
