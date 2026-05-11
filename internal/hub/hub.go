@@ -157,7 +157,7 @@ func (h *Hub) Run(ctx interface{ Done() <-chan struct{} }) {
 			for _, s := range subs {
 				// Compare the receive-direction view of each subscriber channel
 				// against the receive-direction channel from the caller.
-				subRecv := (<-chan Event)(s.ch)
+				var subRecv <-chan Event = s.ch
 				if subRecv != msg.recv {
 					newSubs = append(newSubs, s)
 				}

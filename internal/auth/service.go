@@ -117,7 +117,7 @@ func (s *service) ChangePassword(ctx context.Context, username, oldPassword, new
 }
 
 // loadCredentials fetches the K8s Secret and returns (username, passwordHash).
-func (s *service) loadCredentials(ctx context.Context) (username string, passwordHash string, err error) {
+func (s *service) loadCredentials(ctx context.Context) (username, passwordHash string, err error) {
 	var secret corev1.Secret
 	key := types.NamespacedName{
 		Namespace: s.cfg.K8sNamespace,

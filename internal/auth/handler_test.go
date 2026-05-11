@@ -126,7 +126,7 @@ func TestHandler_UILogin_ValidForm(t *testing.T) {
 	h := auth.NewHandler(svc, false)
 
 	form := url.Values{"username": {"admin"}, "password": {"secret"}}
-	req := httptest.NewRequest(http.MethodPost, "/ui/login",
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/ui/login",
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()
@@ -157,7 +157,7 @@ func TestHandler_UILogin_InvalidPassword_RedirectsWithError(t *testing.T) {
 	h := auth.NewHandler(svc, false)
 
 	form := url.Values{"username": {"admin"}, "password": {"wrong"}}
-	req := httptest.NewRequest(http.MethodPost, "/ui/login",
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/ui/login",
 		strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()
@@ -179,7 +179,7 @@ func TestHandler_APILogout_InvalidatesSession(t *testing.T) {
 
 	// First login to get a session.
 	body := `{"username":"admin","password":"secret"}`
-	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
+	loginReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
 	loginReq.Header.Set("Content-Type", "application/json")
 	loginRR := httptest.NewRecorder()
 	h.APILogin(loginRR, loginReq)
@@ -189,7 +189,7 @@ func TestHandler_APILogout_InvalidatesSession(t *testing.T) {
 	token := loginResp["token"]
 
 	// Now logout.
-	logoutReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+	logoutReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/logout", nil)
 	logoutReq.Header.Set("Authorization", "Bearer "+token)
 	logoutRR := httptest.NewRecorder()
 	h.APILogout(logoutRR, logoutReq)
@@ -205,7 +205,7 @@ func TestHandler_UILogout_ClearsCookieAndRedirects(t *testing.T) {
 
 	// Login first.
 	form := url.Values{"username": {"admin"}, "password": {"secret"}}
-	loginReq := httptest.NewRequest(http.MethodPost, "/ui/login",
+	loginReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/ui/login",
 		strings.NewReader(form.Encode()))
 	loginReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	loginRR := httptest.NewRecorder()
@@ -222,7 +222,7 @@ func TestHandler_UILogout_ClearsCookieAndRedirects(t *testing.T) {
 	}
 
 	// Logout.
-	logoutReq := httptest.NewRequest(http.MethodPost, "/ui/logout", nil)
+	logoutReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/ui/logout", nil)
 	logoutReq.AddCookie(sessionCookie)
 	logoutRR := httptest.NewRecorder()
 	h.UILogout(logoutRR, logoutReq)
@@ -244,7 +244,7 @@ func TestHandler_ChangePassword_ValidOld(t *testing.T) {
 
 	// Login to get a session.
 	loginBody := `{"username":"admin","password":"oldpass"}`
-	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(loginBody))
+	loginReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/login", strings.NewReader(loginBody))
 	loginReq.Header.Set("Content-Type", "application/json")
 	loginRR := httptest.NewRecorder()
 	h.APILogin(loginRR, loginReq)
@@ -254,7 +254,7 @@ func TestHandler_ChangePassword_ValidOld(t *testing.T) {
 
 	// Change password — new password meets minimum 12-char requirement.
 	cpBody := `{"old_password":"oldpass","new_password":"newpassword1234"}`
-	cpReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
+	cpReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
 	cpReq.Header.Set("Content-Type", "application/json")
 	cpReq.Header.Set("Authorization", "Bearer "+loginResp["token"])
 	// Inject username into context (as auth middleware would).
@@ -274,7 +274,7 @@ func TestHandler_ChangePassword_WrongOld_Returns401(t *testing.T) {
 	h := auth.NewHandler(svc, false)
 
 	cpBody := `{"old_password":"wrongold","new_password":"newpass_long_enough"}`
-	cpReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
+	cpReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
 	cpReq.Header.Set("Content-Type", "application/json")
 	ctx := context.WithValue(cpReq.Context(), auth.UsernameContextKey, "admin")
 	cpReq = cpReq.WithContext(ctx)
@@ -294,7 +294,7 @@ func TestHandler_ChangePassword_TooShort_Returns422(t *testing.T) {
 	h := auth.NewHandler(svc, false)
 
 	cpBody := `{"old_password":"oldpass","new_password":"short"}`
-	cpReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
+	cpReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
 	cpReq.Header.Set("Content-Type", "application/json")
 	ctx := context.WithValue(cpReq.Context(), auth.UsernameContextKey, "admin")
 	cpReq = cpReq.WithContext(ctx)
@@ -314,14 +314,14 @@ func TestHandler_ChangePassword_ExactMinLength_Succeeds(t *testing.T) {
 
 	// Login first
 	loginBody := `{"username":"admin","password":"oldpassword1"}`
-	loginReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(loginBody))
+	loginReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/login", strings.NewReader(loginBody))
 	loginReq.Header.Set("Content-Type", "application/json")
 	loginRR := httptest.NewRecorder()
 	h.APILogin(loginRR, loginReq)
 
 	// Change to exactly 12-char password
 	cpBody := `{"old_password":"oldpassword1","new_password":"newpassword1"}`
-	cpReq := httptest.NewRequest(http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
+	cpReq := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/password", strings.NewReader(cpBody))
 	cpReq.Header.Set("Content-Type", "application/json")
 	ctx := context.WithValue(cpReq.Context(), auth.UsernameContextKey, "admin")
 	cpReq = cpReq.WithContext(ctx)
@@ -340,7 +340,7 @@ func TestHandler_SecureCookie_HTTP(t *testing.T) {
 	h := auth.NewHandler(svc, false) // HTTP mode — no TLS
 
 	body := `{"username":"admin","password":"secret"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	h.APILogin(rr, req)
@@ -358,7 +358,7 @@ func TestHandler_SecureCookie_TLS(t *testing.T) {
 	h := auth.NewHandler(svc, true) // TLS mode
 
 	body := `{"username":"admin","password":"secret"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	h.APILogin(rr, req)
