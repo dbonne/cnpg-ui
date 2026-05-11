@@ -208,7 +208,7 @@ func run() error {
 	})
 
 	// ── UI handler (templates embedded at build time) ────────────────────────
-	uiHandler, err := ui.NewUIHandler()
+	uiHandler, err := ui.NewUIHandler(clusterSvc)
 	if err != nil {
 		return fmt.Errorf("initializing UI handler: %w", err)
 	}

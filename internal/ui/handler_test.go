@@ -18,7 +18,7 @@ import (
 // newTestHandler creates a UIHandler pointing at the real embedded templates.
 func newTestHandler(t *testing.T) *ui.UIHandler {
 	t.Helper()
-	h, err := ui.NewUIHandler()
+	h, err := ui.NewUIHandler(nil)
 	if err != nil {
 		t.Fatalf("NewUIHandler: %v", err)
 	}
@@ -36,7 +36,7 @@ func newChiRouter(h *ui.UIHandler) *chi.Mux {
 // ── 6.5.1: NewUIHandler returns non-nil handler without error ─────────────────
 
 func TestNewUIHandler_success(t *testing.T) {
-	h, err := ui.NewUIHandler()
+	h, err := ui.NewUIHandler(nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

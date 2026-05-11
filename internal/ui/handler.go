@@ -3,9 +3,11 @@
 package ui
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -18,16 +20,24 @@ import (
 //go:embed templates
 var templateFS embed.FS
 
+// ClusterLister abstracts the cluster listing operation for the UI layer.
+// This avoids a direct dependency on the cluster package.
+type ClusterLister interface {
+	List(ctx context.Context) ([]api.ClusterSummary, error)
+}
+
 // UIHandler renders HTMX-powered HTML pages for the web UI.
 type UIHandler struct {
 	// tmpl is the parsed template set (layout + all pages).
 	// Parsing once at startup ensures startup-time errors surface early.
-	tmpl *template.Template
+	tmpl     *template.Template
+	clusters ClusterLister
 }
 
 // NewUIHandler parses all embedded templates and returns a ready UIHandler.
+// clusterLister may be nil (clusters will show as empty).
 // Returns an error if any template file fails to parse.
-func NewUIHandler() (*UIHandler, error) {
+func NewUIHandler(clusterLister ClusterLister) (*UIHandler, error) {
 	tmpl, err := template.New("").Funcs(templateFuncs()).ParseFS(
 		templateFS,
 		"templates/layout.html",
@@ -38,7 +48,7 @@ func NewUIHandler() (*UIHandler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing UI templates: %w", err)
 	}
-	return &UIHandler{tmpl: tmpl}, nil
+	return &UIHandler{tmpl: tmpl, clusters: clusterLister}, nil
 }
 
 // ── Page handlers ──────────────────────────────────────────────────────────────
@@ -54,14 +64,32 @@ func (h *UIHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListClusters handles GET /ui/clusters — renders the cluster list page.
-// The list is empty on the initial SSR render; HTMX will trigger a refresh
-// from /api/v1/clusters when a cluster-update SSE event arrives.
+// Loads clusters from K8s on server-side render; HTMX will trigger refreshes
+// from SSE events for live updates.
 func (h *UIHandler) ListClusters(w http.ResponseWriter, r *http.Request) {
 	username := middleware.UsernameFromContext(r.Context())
+
+	var rows []clusterRow
+	if h.clusters != nil {
+		clusters, err := h.clusters.List(r.Context())
+		if err != nil {
+			slog.Error("failed to list clusters", "error", err)
+		} else {
+			for _, c := range clusters {
+				rows = append(rows, clusterRow{
+					Name:        c.Name,
+					Status:      c.Status,
+					StatusClass: StatusBadgeClass(c.Status),
+					Instances:   c.Instances,
+				})
+			}
+		}
+	}
+
 	data := map[string]interface{}{
 		"Username":  username,
 		"ActiveNav": "clusters",
-		"Clusters":  []clusterRow{}, // populated by API + HTMX refresh
+		"Clusters":  rows,
 	}
 	h.renderPage(w, "clusters/list.html", data)
 }
