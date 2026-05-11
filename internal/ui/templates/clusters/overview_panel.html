@@ -1,0 +1,35 @@
+{{/* Overview panel — HTMX fragment, no layout wrapper */}}
+<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1rem;">
+
+  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:1rem;">
+    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; margin-bottom:0.5rem;">Status</div>
+    <span class="badge {{.StatusClass}}">{{.Status}}</span>
+  </div>
+
+  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:1rem;">
+    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; margin-bottom:0.5rem;">Instances</div>
+    <div style="font-size:1.25rem; font-weight:600; color:#1a1a2e;">{{.ReadyInstances}} / {{.Instances}}</div>
+  </div>
+
+  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:1rem;">
+    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; margin-bottom:0.5rem;">Primary</div>
+    <div style="font-size:0.9rem; font-weight:500; color:#1a1a2e; font-family:monospace;">
+      {{if .CurrentPrimary}}{{.CurrentPrimary}}{{else}}<span style="color:#9ca3af;">—</span>{{end}}
+    </div>
+  </div>
+
+  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:1rem;">
+    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; margin-bottom:0.5rem;">Storage</div>
+    <div style="font-size:0.9rem; font-weight:500; color:#1a1a2e;">
+      {{if .StorageSize}}{{.StorageSize}}{{else}}<span style="color:#9ca3af;">—</span>{{end}}
+    </div>
+  </div>
+
+  {{if .PgVersion}}
+  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:1rem;">
+    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; color:#64748b; margin-bottom:0.5rem;">PostgreSQL</div>
+    <div style="font-size:0.9rem; font-weight:500; color:#1a1a2e;">v{{.PgVersion}}</div>
+  </div>
+  {{end}}
+
+</div>

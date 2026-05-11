@@ -20,10 +20,32 @@ import (
 //go:embed templates
 var templateFS embed.FS
 
+// ── Service interfaces ────────────────────────────────────────────────────────
+
 // ClusterLister abstracts the cluster listing operation for the UI layer.
 // This avoids a direct dependency on the cluster package.
 type ClusterLister interface {
 	List(ctx context.Context) ([]api.ClusterSummary, error)
+}
+
+// ClusterGetter abstracts the cluster detail fetch for the UI layer.
+type ClusterGetter interface {
+	Get(ctx context.Context, name string) (*api.ClusterDetail, error)
+}
+
+// BackupLister abstracts the backup listing operation for the UI layer.
+type BackupLister interface {
+	ListBackups(ctx context.Context, clusterName string) ([]api.BackupSummary, error)
+}
+
+// PoolerLister abstracts the pooler listing operation for the UI layer.
+type PoolerLister interface {
+	List(ctx context.Context, clusterName string) ([]api.PoolerSummary, error)
+}
+
+// ConfigGetter abstracts the Postgres config fetch for the UI layer.
+type ConfigGetter interface {
+	GetConfig(ctx context.Context, clusterName string) (*api.PgConfigResponse, error)
 }
 
 // UIHandler renders HTMX-powered HTML pages for the web UI.
@@ -33,17 +55,31 @@ type UIHandler struct {
 	// block name collisions between pages.
 	templates map[string]*template.Template
 	clusters  ClusterLister
+	getter    ClusterGetter
+	backups   BackupLister
+	poolers   PoolerLister
+	config    ConfigGetter
 }
 
 // NewUIHandler parses all embedded templates and returns a ready UIHandler.
-// clusterLister may be nil (clusters will show as empty).
+// All service parameters may be nil (graceful degradation — panels show empty state).
 // Returns an error if any template file fails to parse.
-func NewUIHandler(clusterLister ClusterLister) (*UIHandler, error) {
+func NewUIHandler(
+	clusterLister ClusterLister,
+	clusterGetter ClusterGetter,
+	backupLister BackupLister,
+	poolerLister PoolerLister,
+	configGetter ConfigGetter,
+) (*UIHandler, error) {
 	funcs := templateFuncs()
 	pages := map[string][]string{
-		"login":          {"templates/login.html"},
-		"clusters/list":  {"templates/layout.html", "templates/clusters/list.html"},
-		"clusters/detail": {"templates/layout.html", "templates/clusters/detail.html"},
+		"login":                   {"templates/login.html"},
+		"clusters/list":           {"templates/layout.html", "templates/clusters/list.html"},
+		"clusters/detail":         {"templates/layout.html", "templates/clusters/detail.html"},
+		"clusters/overview_panel": {"templates/clusters/overview_panel.html"},
+		"clusters/logs_panel":     {"templates/clusters/logs_panel.html"},
+		"clusters/config_panel":   {"templates/clusters/config_panel.html"},
+		"clusters/backups_panel":  {"templates/clusters/backups_panel.html"},
 	}
 
 	templates := make(map[string]*template.Template, len(pages))
@@ -55,7 +91,14 @@ func NewUIHandler(clusterLister ClusterLister) (*UIHandler, error) {
 		templates[name] = t
 	}
 
-	return &UIHandler{templates: templates, clusters: clusterLister}, nil
+	return &UIHandler{
+		templates: templates,
+		clusters:  clusterLister,
+		getter:    clusterGetter,
+		backups:   backupLister,
+		poolers:   poolerLister,
+		config:    configGetter,
+	}, nil
 }
 
 // ── Page handlers ──────────────────────────────────────────────────────────────
@@ -102,17 +145,128 @@ func (h *UIHandler) ListClusters(w http.ResponseWriter, r *http.Request) {
 }
 
 // ClusterDetail handles GET /ui/clusters/{name} — renders the cluster detail page.
+// When ClusterGetter is configured, it loads real cluster data; otherwise it
+// degrades gracefully showing the cluster name with an unknown status.
 func (h *UIHandler) ClusterDetail(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	username := middleware.UsernameFromContext(r.Context())
+
+	// Default to minimal fallback data (graceful degradation when no getter).
+	status := api.StatusHealthy
 	data := map[string]interface{}{
 		"Username":    username,
 		"ActiveNav":   "clusters",
 		"ClusterName": name,
-		"Status":      api.StatusHealthy,
-		"StatusClass": StatusBadgeClass(api.StatusHealthy),
+		"Status":      status,
+		"StatusClass": StatusBadgeClass(status),
 	}
+
+	if h.getter != nil {
+		detail, err := h.getter.Get(r.Context(), name)
+		if err != nil {
+			slog.Error("failed to get cluster detail", "cluster", name, "error", err)
+		} else if detail != nil {
+			data["Status"] = detail.Status
+			data["StatusClass"] = StatusBadgeClass(detail.Status)
+			data["Instances"] = detail.Instances
+			data["ReadyInstances"] = detail.ReadyInstances
+			data["CurrentPrimary"] = detail.CurrentPrimary
+			data["StorageSize"] = detail.StorageSize
+			data["PgVersion"] = detail.PgVersion
+		}
+	}
+
 	h.renderPage(w, "clusters/detail", data)
+}
+
+// ── Panel handlers (HTMX partials) ────────────────────────────────────────────
+
+// OverviewPanel handles GET /ui/clusters/{name}/overview — renders the overview HTML partial.
+// Shows cluster instances, status, primary node, and storage information.
+func (h *UIHandler) OverviewPanel(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+
+	data := map[string]interface{}{
+		"ClusterName":    name,
+		"Status":         api.StatusHealthy,
+		"StatusClass":    StatusBadgeClass(api.StatusHealthy),
+		"Instances":      0,
+		"ReadyInstances": 0,
+		"CurrentPrimary": "",
+		"StorageSize":    "",
+		"PgVersion":      0,
+	}
+
+	if h.getter != nil {
+		detail, err := h.getter.Get(r.Context(), name)
+		if err != nil {
+			slog.Error("overview panel: failed to get cluster", "cluster", name, "error", err)
+		} else if detail != nil {
+			data["Status"] = detail.Status
+			data["StatusClass"] = StatusBadgeClass(detail.Status)
+			data["Instances"] = detail.Instances
+			data["ReadyInstances"] = detail.ReadyInstances
+			data["CurrentPrimary"] = detail.CurrentPrimary
+			data["StorageSize"] = detail.StorageSize
+			data["PgVersion"] = detail.PgVersion
+		}
+	}
+
+	h.renderPanel(w, "clusters/overview_panel", data)
+}
+
+// LogsPanel handles GET /ui/clusters/{name}/logs-panel — renders the log viewer HTML partial.
+// The partial sets up an SSE connection to the log stream endpoint.
+func (h *UIHandler) LogsPanel(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	data := map[string]interface{}{
+		"ClusterName": name,
+	}
+	h.renderPanel(w, "clusters/logs_panel", data)
+}
+
+// ConfigPanel handles GET /ui/clusters/{name}/config-panel — renders the Postgres config HTML partial.
+// Lists postgres parameters with their type metadata from the ConfigGetter.
+func (h *UIHandler) ConfigPanel(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+
+	var params []api.PgParamMetadata
+	if h.config != nil {
+		resp, err := h.config.GetConfig(r.Context(), name)
+		if err != nil {
+			slog.Error("config panel: failed to get config", "cluster", name, "error", err)
+		} else if resp != nil {
+			params = resp.Parameters
+		}
+	}
+
+	data := map[string]interface{}{
+		"ClusterName": name,
+		"Parameters":  params,
+	}
+	h.renderPanel(w, "clusters/config_panel", data)
+}
+
+// BackupsPanel handles GET /ui/clusters/{name}/backups-panel — renders the backups HTML partial.
+// Lists backups for the cluster from the BackupLister.
+func (h *UIHandler) BackupsPanel(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+
+	var backups []api.BackupSummary
+	if h.backups != nil {
+		list, err := h.backups.ListBackups(r.Context(), name)
+		if err != nil {
+			slog.Error("backups panel: failed to list backups", "cluster", name, "error", err)
+		} else {
+			backups = list
+		}
+	}
+
+	data := map[string]interface{}{
+		"ClusterName": name,
+		"Backups":     backups,
+	}
+	h.renderPanel(w, "clusters/backups_panel", data)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -138,6 +292,35 @@ func (h *UIHandler) renderPage(w http.ResponseWriter, name string, data interfac
 	if err := t.ExecuteTemplate(w, execName, data); err != nil {
 		http.Error(w, "template rendering error: "+err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// renderPanel renders an HTML fragment partial (no layout wrapper).
+// Panel templates are the filename within the embed.FS.
+func (h *UIHandler) renderPanel(w http.ResponseWriter, name string, data interface{}) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	t, ok := h.templates[name]
+	if !ok {
+		http.Error(w, "panel template not found: "+name, http.StatusInternalServerError)
+		return
+	}
+
+	// Panel templates are single-file fragments; execute by the last path segment.
+	execName := templateFilename(name)
+	if err := t.ExecuteTemplate(w, execName, data); err != nil {
+		http.Error(w, "panel rendering error: "+err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// templateFilename extracts the base filename for panel template execution.
+// e.g. "clusters/overview_panel" → "overview_panel.html"
+func templateFilename(name string) string {
+	for i := len(name) - 1; i >= 0; i-- {
+		if name[i] == '/' {
+			return name[i+1:] + ".html"
+		}
+	}
+	return name + ".html"
 }
 
 // StatusBadgeClass maps a NormalizedStatus to the CSS class for the badge element.

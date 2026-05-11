@@ -1,0 +1,22 @@
+{{/* Logs panel — HTMX fragment, no layout wrapper */}}
+<div>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+    <h3 style="font-size:0.95rem; font-weight:600; color:#1a1a2e;">Log Stream</h3>
+    <span style="font-size:0.8rem; color:#6b7280;">Live logs from <code>{{.ClusterName}}</code></span>
+  </div>
+
+  <div
+    id="log-output-{{.ClusterName}}"
+    style="background:#0f172a; color:#e2e8f0; font-family:monospace; font-size:0.8rem; padding:1rem; border-radius:6px; height:400px; overflow-y:auto;"
+    hx-ext="sse"
+    sse-connect="/api/v1/clusters/{{.ClusterName}}/logs/stream"
+    sse-swap="beforeend"
+    hx-swap="beforeend">
+    <span style="color:#6b7280;">Connecting to log stream for {{.ClusterName}}…</span>
+  </div>
+
+  <div style="margin-top:0.5rem; font-size:0.75rem; color:#9ca3af;">
+    Streaming logs via SSE from
+    <a href="/api/v1/clusters/{{.ClusterName}}/logs/stream" style="color:#60a5fa;">/api/v1/clusters/{{.ClusterName}}/logs/stream</a>
+  </div>
+</div>

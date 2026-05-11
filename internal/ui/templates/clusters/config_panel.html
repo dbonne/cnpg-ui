@@ -1,0 +1,39 @@
+{{/* Config panel — HTMX fragment, no layout wrapper */}}
+<div>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+    <h3 style="font-size:0.95rem; font-weight:600; color:#1a1a2e;">PostgreSQL Parameters</h3>
+  </div>
+
+  {{if .Parameters}}
+  <table>
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Type</th>
+        <th>Current Value</th>
+        <th>Restart Required</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Parameters}}
+      <tr>
+        <td style="font-family:monospace; font-weight:500;">{{.Name}}</td>
+        <td style="color:#6b7280; font-size:0.85rem;">{{.Type}}</td>
+        <td style="font-family:monospace;">{{.CurrentValue}}</td>
+        <td>
+          {{if .RequiresRestart}}
+          <span style="color:#b45309; font-size:0.8rem; font-weight:500;">Yes</span>
+          {{else}}
+          <span style="color:#6b7280; font-size:0.8rem;">No</span>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center; padding:2rem; color:#6b7280; font-size:0.9rem;">
+    No custom parameters configured.
+  </div>
+  {{end}}
+</div>

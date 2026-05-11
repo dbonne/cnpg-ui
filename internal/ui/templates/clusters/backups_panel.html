@@ -1,0 +1,42 @@
+{{/* Backups panel — HTMX fragment, no layout wrapper */}}
+<div>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+    <h3 style="font-size:0.95rem; font-weight:600; color:#1a1a2e;">Backups</h3>
+    <button
+      class="btn btn-sm btn-primary"
+      hx-post="/api/v1/clusters/{{.ClusterName}}/backups"
+      hx-target="closest div"
+      hx-swap="outerHTML">
+      Trigger Backup
+    </button>
+  </div>
+
+  {{if .Backups}}
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Phase</th>
+        <th>Method</th>
+        <th>Started</th>
+        <th>Stopped</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Backups}}
+      <tr>
+        <td style="font-family:monospace; font-size:0.85rem;">{{.Name}}</td>
+        <td>{{.Phase}}</td>
+        <td style="color:#6b7280; font-size:0.85rem;">{{.Method}}</td>
+        <td style="font-size:0.8rem; color:#6b7280;">{{if .StartedAt}}{{.StartedAt}}{{else}}—{{end}}</td>
+        <td style="font-size:0.8rem; color:#6b7280;">{{if .StoppedAt}}{{.StoppedAt}}{{else}}—{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div style="text-align:center; padding:2rem; background:#f8fafc; border-radius:6px; color:#6b7280; font-size:0.9rem;">
+    No backups found for this cluster.
+  </div>
+  {{end}}
+</div>
