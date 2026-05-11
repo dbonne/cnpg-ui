@@ -16,7 +16,6 @@ linters:
     - godot
     - noctx
     - bodyclose
-    - exportloopref
     - gocritic
 
 linters-settings:
